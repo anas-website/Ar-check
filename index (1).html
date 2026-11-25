@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141517">
+<title>FitForge AR — truck box fit check</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect x=%223%22 y=%224.5%22 width=%2218%22 height=%2211%22 rx=%221.6%22 fill=%22none%22 stroke=%22%23ff4f00%22 stroke-width=%222.4%22/%3E%3Ccircle cx=%227.5%22 cy=%2219%22 r=%222.2%22 fill=%22%230a84ff%22/%3E%3Ccircle cx=%2216.5%22 cy=%2219%22 r=%222.2%22 fill=%22%23e6007e%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap">
+<style>
+/* VOICE   shop-floor instrument: terse labels, numbers first.
+   IDEA    a fitter's gauge: hole A, hole B, a spacing readout, a ghosted box over the real truck.
+   PICTURE the model fills the screen (the camera view in AR).
+   COLOUR  aluminium / graphite grounds, safety-orange actions, hole A blue, hole B magenta. TYPE Geist.
+   LAYOUT  full-bleed viewport; bottom sheet on phones, right rail on desktop. */
+:root{
+  --bg:#e9eaec;--bg2:#d6d9dd;--panel:#fff;--panel2:#f3f4f6;--ink:#111316;--mute:#5b616a;--line:#d7dadf;
+  --acc:#ff4f00;--a:#0a84ff;--b:#e6007e;--ok:#12a150;--warn:#c98a00;--bad:#e0342b;
+  --shadow:0 12px 32px rgba(17,19,22,.16);color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#1a1c1f;--bg2:#0e0f11;--panel:#1c1e21;--panel2:#25282c;--ink:#eef0f2;--mute:#9ba2ab;--line:#33373d;--shadow:0 12px 32px rgba(0,0,0,.5)}}
+*{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
+body{background:radial-gradient(120% 90% at 50% 28%,var(--bg),var(--bg2));color:var(--ink);font:15px/1.45 Geist,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+#ui{position:fixed;inset:0;pointer-events:none;z-index:2}
+#ui:xr-overlay{background:transparent}
+#ui>*{pointer-events:auto}
+#bar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 10px) max(12px,env(safe-area-inset-right)) 10px max(12px,env(safe-area-inset-left));pointer-events:none}
+#bar>*{pointer-events:auto}
+.brand{display:flex;align-items:center;gap:8px;height:44px;padding:0 14px 0 10px;background:var(--panel);border-radius:12px;box-shadow:var(--shadow);font-weight:700;letter-spacing:-.01em}
+.brand .sub{font-weight:500;color:var(--mute);font-size:13px}
+.fname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mute);font-size:13px;text-align:right;pointer-events:none!important}
+@media (max-width:440px){.brand .sub{display:none}}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;font-weight:600;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation;text-decoration:none;white-space:nowrap}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.42;cursor:default;transform:none}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.big{min-height:52px;font-size:16px}
+.btn.wide{width:100%}
+.btn.sm{min-height:36px;padding:0 12px;font-size:13px}
+.btn.x{min-width:36px;padding:0;font-size:18px}
+#bar .btn{box-shadow:var(--shadow);border-color:transparent}
+.btn:focus-visible,.chip:focus-visible,.tab:focus-visible,.tag:focus-visible{outline:3px solid rgba(255,79,0,.5);outline-offset:2px}
+.card{position:absolute;background:var(--panel);border-radius:20px;box-shadow:var(--shadow)}
+#empty{left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,calc(100% - 28px));padding:28px 24px 22px}
+#empty h1{font-size:32px;line-height:1.05;margin:0 0 10px;letter-spacing:-.025em;text-wrap:balance}
+#empty p{margin:0 0 18px;color:var(--mute)}
+#empty .btn{width:100%}
+.steps{margin:18px 0 8px;padding:0;list-style:none;counter-reset:s;display:grid;gap:10px}
+.steps li{counter-increment:s;display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start}
+.steps li::before{content:counter(s);display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--panel);font-weight:700;font-size:13px}
+.steps.small li{font-size:14px;color:var(--mute)}
+.steps.small li::before{width:22px;height:22px;font-size:12px}
+.fine{font-size:13px;color:var(--mute)}
+.mono{font-variant-numeric:tabular-nums}
+#busy{left:50%;top:50%;transform:translate(-50%,-50%);display:flex;gap:14px;align-items:center;padding:18px 22px;z-index:5;min-width:270px}
+.spin{width:28px;height:28px;flex:none;border-radius:50%;border:3px solid var(--line);border-top-color:var(--acc);animation:sp .9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:4s}}
+#sheet{position:absolute;left:0;right:0;bottom:0;height:min(44vh,440px);display:flex;flex-direction:column;background:var(--panel);border-radius:20px 20px 0 0;box-shadow:0 -10px 30px rgba(17,19,22,.14);padding-bottom:env(safe-area-inset-bottom)}
+#sheet.collapsed{height:auto}
+#sheet.collapsed .panes{display:none}
+.grab{display:block;width:100%;height:20px;border:0;background:transparent;padding:0;cursor:pointer}
+.grab i{display:block;width:40px;height:4px;border-radius:2px;background:var(--line);margin:9px auto 0}
+.tabs{display:flex;gap:4px;padding:4px 10px 8px;border-bottom:1px solid var(--line)}
+.tab{flex:1;height:40px;border:0;border-radius:10px;background:transparent;color:var(--mute);font:inherit;font-weight:600;cursor:pointer}
+.tab[aria-selected=true]{background:var(--ink);color:var(--panel)}
+.panes{flex:1;overflow:auto;padding:14px 16px 18px;-webkit-overflow-scrolling:touch}
+.pane{display:grid;gap:12px;align-content:start}
+@media (min-width:900px){#sheet{left:auto;top:76px;right:14px;bottom:14px;width:370px;height:auto;border-radius:18px;padding-bottom:0}.grab{display:none}.tabs{padding-top:10px}}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.lbl{font-size:13px;color:var(--mute);font-weight:500}
+.big{font-size:22px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1.15}
+.big small{font-size:13px;color:var(--mute);font-weight:500}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{min-height:38px;min-width:44px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);font:inherit;font-size:14px;font-weight:600;cursor:pointer;touch-action:manipulation}
+.chip[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+.chip:disabled{opacity:.38}
+.sw{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-weight:500;position:relative}
+.sw input{position:absolute;opacity:0;width:1px;height:1px}
+.sw .tr{width:42px;height:26px;border-radius:13px;background:var(--line);position:relative;flex:none;transition:background .15s}
+.sw .tr::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.sw input:checked+.tr{background:var(--acc)}
+.sw input:checked+.tr::after{transform:translateX(16px)}
+.sw input:focus-visible+.tr{outline:3px solid rgba(255,79,0,.5);outline-offset:2px}
+input[type=range]{width:100%;height:32px;accent-color:var(--acc);margin:0}
+.pick{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:14px;background:var(--panel2)}
+.tag{width:42px;height:42px;border-radius:12px;border:0;color:#fff;font:inherit;font-weight:800;font-size:17px;cursor:pointer}
+.tag.a{background:var(--a)}.tag.b{background:var(--b)}
+.tag.on{box-shadow:0 0 0 3px var(--panel2),0 0 0 5px var(--acc)}
+.pinfo{display:grid;gap:1px}
+.hint{margin:0;font-size:14px;color:var(--mute)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;color:#fff}
+.badge.ok{background:var(--ok)}.badge.warn{background:var(--warn)}.badge.bad{background:var(--bad)}
+.okc{color:var(--ok);font-weight:600}
+#toast{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 64px);transform:translate(-50%,-8px);width:max-content;max-width:min(560px,calc(100% - 28px));padding:10px 16px;border-radius:12px;background:rgba(17,19,22,.92);color:#fff;font-size:14px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:9}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+/* AR overlay */
+#arTop,#cross,#arSheet{display:none}
+body.ar #bar,body.ar #sheet,body.ar #empty,body.ar #busy{display:none!important}
+body.ar #arTop{display:flex}
+body.ar #cross{display:block}
+body.ar #arSheet{display:flex}
+body.ar #toast{top:calc(env(safe-area-inset-top) + 62px)}
+#arTop{position:absolute;top:calc(env(safe-area-inset-top) + 10px);left:64px;right:10px;gap:8px;align-items:center}
+#arStatus{flex:1;min-height:42px;display:flex;align-items:center;padding:8px 14px;border-radius:12px;background:rgba(14,15,17,.74);color:#fff;font-size:14px;font-weight:500;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#arExit{background:rgba(14,15,17,.74);color:#fff;border-color:rgba(255,255,255,.2)}
+#cross{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;pointer-events:none!important;filter:drop-shadow(0 0 2px rgba(0,0,0,.85))}
+#arSheet{position:absolute;left:8px;right:8px;bottom:calc(env(safe-area-inset-bottom) + 8px);max-height:44vh;flex-direction:column;border-radius:18px;background:rgba(16,17,19,.84);color:#f1f3f5;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  --panel:#1c1e21;--panel2:rgba(255,255,255,.07);--ink:#f1f3f5;--mute:#a7aeb7;--line:rgba(255,255,255,.15)}
+#arSheet .tabs{padding-top:8px}
+#arSheet .panes{padding:12px 12px 14px}
+#arSheet .btn{background:rgba(255,255,255,.09);color:#fff;border-color:rgba(255,255,255,.16)}
+#arSheet .btn.pri{background:var(--acc);border-color:var(--acc)}
+#arSheet .btn.mark.a{background:var(--a);border-color:var(--a)}
+#arSheet .btn.mark.b{background:var(--b);border-color:var(--b)}
+#arSheet .chip{min-height:36px;padding:0 10px}
+.pad{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.pad .btn{min-height:46px;padding:0 6px}
+.pad svg{width:22px;height:22px}
+.steprow{display:flex;align-items:center;gap:10px}
+.steprow .lbl{width:64px;flex:none}
+@media (min-width:700px){#arSheet{left:auto;width:430px}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<canvas id="c" aria-label="3D view of the truck box"></canvas>
+<div id="ui">
+  <header id="bar">
+    <div class="brand"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="11" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 18.5h18" stroke="currentColor" stroke-width="2"/><circle cx="7.5" cy="18.5" r="2" fill="#0a84ff"/><circle cx="16.5" cy="18.5" r="2" fill="#e6007e"/></svg><b>FitForge</b><span class="sub">AR fit check</span></div>
+    <span id="fname" class="fname"></span>
+    <label class="btn pri" for="file" id="openBtn">Open STEP</label>
+    <input type="file" id="file" accept=".step,.stp,.STEP,.STP" hidden>
+  </header>
+
+  <div id="empty" class="card">
+    <h1>Will the box fit the truck?</h1>
+    <p>Open the truck box as a STEP file, pick two of its mounting holes, then check it on the real chassis in AR.</p>
+    <label class="btn pri big" for="file">Open STEP file</label>
+    <ol class="steps">
+      <li><span><b>Open</b> the box (.step / .stp, mm)</span></li>
+      <li><span><b>Pick holes A and B</b> on the model: two mounting holes far apart</span></li>
+      <li><span><b>Start AR</b>, aim at the same two holes on the truck. The box snaps on; nudge it, ghost it, measure gaps</span></li>
+    </ol>
+    <p class="fine" id="envNote" style="margin:8px 0 0"></p>
+  </div>
+
+  <div id="busy" class="card" hidden><div class="spin"></div><div><b id="busyText">Loading</b><div class="fine" id="busySub"></div></div></div>
+
+  <section id="sheet" hidden>
+    <button class="grab" id="grab" aria-label="Collapse or expand panel"><i></i></button>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="model" aria-selected="true">Model</button>
+      <button class="tab" role="tab" data-tab="holes" aria-selected="false">Holes</button>
+      <button class="tab" role="tab" data-tab="view" aria-selected="false">View</button>
+      <button class="tab" role="tab" data-tab="ar" aria-selected="false">AR</button>
+    </nav>
+    <div class="panes">
+      <div class="pane" data-pane="model">
+        <div id="modelInfo"></div>
+        <div class="lbl">Up axis — pick the one that makes the box stand upright</div>
+        <div class="chips" id="upChips">
+          <button class="chip" data-up="+Y">+Y</button><button class="chip" data-up="+Z">+Z</button><button class="chip" data-up="-Y">−Y</button>
+          <button class="chip" data-up="-Z">−Z</button><button class="chip" data-up="+X">+X</button><button class="chip" data-up="-X">−X</button>
+        </div>
+        <label class="sw"><input type="checkbox" id="colors" checked><i class="tr"></i>STEP colours</label>
+      </div>
+      <div class="pane" data-pane="holes" hidden>
+        <p class="hint">Tap a hole on the model; pick two far apart. The ring marks the hole face that sits on the chassis (inner or lower face). Use Flip end if your bracket is the other way.</p>
+        <div class="pick" id="pickA"></div>
+        <div class="pick" id="pickB"></div>
+        <div id="spacing"></div>
+        <label class="sw"><input type="checkbox" id="showHoles" checked><i class="tr"></i><span>Show detected holes <b id="holeCount" class="mono"></b></span></label>
+      </div>
+      <div class="pane" data-pane="view" hidden>
+        <div class="row"><span class="lbl">Box opacity</span><output id="opOut" class="mono">100%</output></div>
+        <input type="range" id="op" min="5" max="100" value="100" aria-label="Box opacity">
+        <div class="chips opchips"><button class="chip" data-op="100">Solid</button><button class="chip" data-op="55">Glass</button><button class="chip" data-op="22">Ghost</button></div>
+        <label class="sw"><input type="checkbox" id="edges" checked><i class="tr"></i>Edges</label>
+      </div>
+      <div class="pane" data-pane="ar" hidden>
+        <div id="arState" class="hint"></div>
+        <button class="btn pri big wide" id="arBtn" disabled>Start AR</button>
+        <div id="qlBox" class="pane" hidden>
+          <button class="btn wide" id="qlPrep">Prepare AR Quick Look</button>
+          <a id="qlLink" rel="ar" class="btn pri big wide" hidden><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="1" height="1">Open in AR Quick Look</a>
+        </div>
+        <ol class="steps small">
+          <li><span>Pick holes A and B on the model (Holes tab).</span></li>
+          <li><span>Start AR. Sweep the phone slowly over the chassis until the white ring sits on it.</span></li>
+          <li><span>Aim the crosshair at real hole A, tap Mark A, then hole B. The box snaps on.</span></li>
+          <li><span>Fine-tune in Move; check clearances in View → Measure gap.</span></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <div id="arTop"><div id="arStatus">Starting AR…</div><button class="btn" id="arExit">Exit</button></div>
+  <svg id="cross" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="11" fill="none" stroke="#fff" stroke-width="2"/><path d="M28 3v13M28 40v13M3 28h13M40 28h13" stroke="#fff" stroke-width="2"/><circle cx="28" cy="28" r="2" fill="#ff4f00"/></svg>
+  <section id="arSheet">
+    <nav class="tabs" role="tablist">
+      <button class="tab" data-atab="place" aria-selected="true">Place</button>
+      <button class="tab" data-atab="holes" aria-selected="false">Holes</button>
+      <button class="tab" data-atab="move" aria-selected="false">Move</button>
+      <button class="tab" data-atab="view" aria-selected="false">View</button>
+    </nav>
+    <div class="panes">
+      <div class="pane" data-apane="place">
+        <p class="hint">Aim the crosshair at the ground or the chassis top. The box's bottom-centre lands on it, long side across the screen.</p>
+        <button class="btn pri big wide" id="arPlace">Place box here</button>
+      </div>
+      <div class="pane" data-apane="holes" hidden>
+        <div id="arPicks" class="fine"></div>
+        <div class="two"><button class="btn big mark a" id="markA">Mark real A</button><button class="btn big mark b" id="markB">Mark real B</button></div>
+        <div id="arReport" class="pane" style="gap:4px"></div>
+        <label class="sw"><input type="checkbox" id="keepLevel" checked><i class="tr"></i>Keep box level</label>
+      </div>
+      <div class="pane" data-apane="move" hidden style="gap:10px">
+        <div class="steprow"><span class="lbl">Step</span><div class="chips" id="mmChips"><button class="chip" data-mm="1">1</button><button class="chip" data-mm="5">5</button><button class="chip" data-mm="10">10</button><button class="chip" data-mm="50">50</button><button class="chip" data-mm="100">100 mm</button></div></div>
+        <div class="steprow"><span class="lbl">Turn</span><div class="chips" id="degChips"><button class="chip" data-deg="0.2">0.2</button><button class="chip" data-deg="1">1</button><button class="chip" data-deg="5">5</button><button class="chip" data-deg="15">15°</button></div></div>
+        <div class="pad" id="pad">
+          <button class="btn" data-n="l,-1" aria-label="Move along length, minus">L −</button><button class="btn" data-n="l,1" aria-label="Move along length, plus">L +</button>
+          <button class="btn" data-n="h,1">Up</button>
+          <button class="btn" data-n="yaw,1" aria-label="Turn left"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5M5 3v4h4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+          <button class="btn" data-n="w,-1" aria-label="Move across width, minus">W −</button><button class="btn" data-n="w,1" aria-label="Move across width, plus">W +</button>
+          <button class="btn" data-n="h,-1">Down</button>
+          <button class="btn" data-n="yaw,-1" aria-label="Turn right"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.1-5M19 3v4h-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+        </div>
+        <div class="row"><span id="offs" class="fine mono"></span><button class="btn sm" id="mvReset">Reset</button></div>
+        <div class="steprow"><span class="lbl">Turn about</span><div class="chips" id="rotChips"><button class="chip" data-rot="centre">Box centre</button><button class="chip" data-rot="A">Hole A</button><button class="chip" data-rot="B">Hole B</button></div></div>
+      </div>
+      <div class="pane" data-apane="view" hidden>
+        <div class="row"><span class="lbl">Box opacity</span><output id="opOut2" class="mono"></output></div>
+        <input type="range" id="op2" min="5" max="100" aria-label="Box opacity">
+        <div class="chips opchips"><button class="chip" data-op="100">Solid</button><button class="chip" data-op="55">Glass</button><button class="chip" data-op="22">Ghost</button></div>
+        <div class="two"><label class="sw"><input type="checkbox" id="edges2"><i class="tr"></i>Edges</label><label class="sw"><input type="checkbox" id="hideBox"><i class="tr"></i>Hide box</label></div>
+        <div class="two"><button class="btn big" id="probeBtn">Measure gap</button><button class="btn big" id="probeClear">Clear</button></div>
+        <div id="probeOut" class="fine">Aim at a real object (cab, wheel arch, tank) and tap Measure gap: you get its distance to the nearest box surface.</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const OCCT_BASE = 'https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/';
+const OCCT_PARAMS = { linearUnit: 'millimeter', linearDeflectionType: 'bounding_box_ratio', linearDeflection: 0.0008, angularDeflection: 0.4 };
+const UNIT = 0.001;            // model millimetres -> metres
+const SAMPLES = 20;            // hit-test samples (median) per real hole
+const UP = new THREE.Vector3(0, 1, 0), ZAX = new THREE.Vector3(0, 0, 1);
+const COL = { a: 0x0a84ff, b: 0xe6007e, acc: 0xff4f00 };
+const CSS = { a: '#0a84ff', b: '#e6007e', acc: '#ff4f00', ok: '#12a150', warn: '#c98a00', bad: '#e0342b' };
+const DEF_RGB = [0.72, 0.75, 0.79];
+const UPS = { '+Y': [0, 1, 0], '+Z': [0, 0, 1], '-Y': [0, -1, 0], '-Z': [0, 0, -1], '+X': [1, 0, 0], '-X': [-1, 0, 0] };
+const $ = id => document.getElementById(id);
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const dark = matchMedia('(prefers-color-scheme: dark)');
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('fitforge.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('fitforge.' + k, JSON.stringify(v)); } catch {} }
+};
+const fmt1 = v => (Math.round(v * 10) / 10).toFixed(1).replace('-', '−');
+const fmt0 = v => String(Math.round(v)).replace('-', '−');
+const fmtS = v => { const s = Math.round(v * 10) / 10; return (s > 0 ? '+' : s < 0 ? '−' : '') + Math.abs(s).toFixed(1); };
+
+/*CORE:BEGIN — pure functions, also copied into the STEP worker */
+function ffEig3(m) {
+  const A = [[m[0], m[1], m[2]], [m[1], m[3], m[4]], [m[2], m[4], m[5]]], V = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let sweep = 0; sweep < 40; sweep++) {
+    if (Math.abs(A[0][1]) + Math.abs(A[0][2]) + Math.abs(A[1][2]) < 1e-15) break;
+    for (let p = 0; p < 2; p++) for (let q = p + 1; q < 3; q++) {
+      const apq = A[p][q]; if (Math.abs(apq) < 1e-20) continue;
+      const th = (A[q][q] - A[p][p]) / (2 * apq), t = (th >= 0 ? 1 : -1) / (Math.abs(th) + Math.sqrt(th * th + 1));
+      const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      for (let k = 0; k < 3; k++) { const x = A[k][p], y = A[k][q]; A[k][p] = c * x - s * y; A[k][q] = s * x + c * y; }
+      for (let k = 0; k < 3; k++) { const x = A[p][k], y = A[q][k]; A[p][k] = c * x - s * y; A[q][k] = s * x + c * y; }
+      for (let k = 0; k < 3; k++) { const x = V[k][p], y = V[k][q]; V[k][p] = c * x - s * y; V[k][q] = s * x + c * y; }
+    }
+  }
+  const o = [0, 1, 2].sort((i, j) => A[i][i] - A[j][j]);
+  return { val: o.map(i => A[i][i]), vec: o.map(i => [V[0][i], V[1][i], V[2][i]]) };
+}
+function ffFitCircle(xs, ys, n) {
+  let mx = 0, my = 0; for (let i = 0; i < n; i++) { mx += xs[i]; my += ys[i]; } mx /= n; my /= n;
+  let suu = 0, svv = 0, suv = 0, suuu = 0, svvv = 0, suvv = 0, svuu = 0;
+  for (let i = 0; i < n; i++) { const u = xs[i] - mx, v = ys[i] - my, uu = u * u, vv = v * v; suu += uu; svv += vv; suv += u * v; suuu += uu * u; svvv += vv * v; suvv += u * vv; svuu += v * uu; }
+  const det = suu * svv - suv * suv; if (!(Math.abs(det) > 1e-12)) return null;
+  const b1 = (suuu + suvv) / 2, b2 = (svvv + svuu) / 2, uc = (b1 * svv - b2 * suv) / det, vc = (suu * b2 - suv * b1) / det;
+  return { x: uc + mx, y: vc + my, r: Math.sqrt(uc * uc + vc * vc + (suu + svv) / n) };
+}
+// Find round holes and slots from tessellated B-rep faces: each face is tested for a concave cylinder
+// (normals perpendicular to one axis, points on a circle around it), split halves are merged, slot ends paired.
+function ffFindHoles(pos, nrm, idx, faces) {
+  const TAU = Math.PI * 2, mark = new Int32Array(pos.length / 3).fill(-1), cyl = [];
+  const dot3 = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+  for (let fi = 0; fi < faces.length; fi++) {
+    const f = faces[fi], vs = [];
+    for (let t = f.first; t <= f.last; t++) for (let k = 0; k < 3; k++) { const v = idx[3 * t + k]; if (mark[v] !== fi) { mark[v] = fi; vs.push(v); } }
+    const n = vs.length; if (n < 6) continue;
+    let c00 = 0, c01 = 0, c02 = 0, c11 = 0, c12 = 0, c22 = 0;
+    for (let i = 0; i < n; i++) { const v = 3 * vs[i], x = nrm[v], y = nrm[v + 1], z = nrm[v + 2]; c00 += x * x; c01 += x * y; c02 += x * z; c11 += y * y; c12 += y * z; c22 += z * z; }
+    const tr = c00 + c11 + c22; if (!(tr > 0)) continue;
+    const e = ffEig3([c00 / tr, c01 / tr, c02 / tr, c11 / tr, c12 / tr, c22 / tr]);
+    if (e.val[0] > 0.004 || e.val[1] < 0.03) continue;              // not a cylinder (cone, plane, freeform)
+    const a = e.vec[0], u = e.vec[1], w = e.vec[2], xs = new Float64Array(n), ys = new Float64Array(n);
+    let t0 = Infinity, t1 = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const v = 3 * vs[i], px = pos[v], py = pos[v + 1], pz = pos[v + 2];
+      xs[i] = px * u[0] + py * u[1] + pz * u[2]; ys[i] = px * w[0] + py * w[1] + pz * w[2];
+      const t = px * a[0] + py * a[1] + pz * a[2]; if (t < t0) t0 = t; if (t > t1) t1 = t;
+    }
+    const c = ffFitCircle(xs, ys, n); if (!c || !(c.r > 0.2) || c.r > 300) continue;
+    let err = 0, inward = 0, bx = 0, by = 0; const ang = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const v = 3 * vs[i], dx = xs[i] - c.x, dy = ys[i] - c.y, d = Math.hypot(dx, dy) || 1e-9;
+      err = Math.max(err, Math.abs(d - c.r));
+      const nu = nrm[v] * u[0] + nrm[v + 1] * u[1] + nrm[v + 2] * u[2], nw = nrm[v] * w[0] + nrm[v + 1] * w[1] + nrm[v + 2] * w[2];
+      if (nu * dx + nw * dy < 0) inward++;                            // normal points at the axis: material outside = hole
+      ang[i] = Math.atan2(dy, dx); bx += dx / d; by += dy / d;
+    }
+    if (err > 0.01 * c.r + 0.02) continue;
+    ang.sort(); let gap = ang[0] + TAU - ang[n - 1]; for (let i = 1; i < n; i++) gap = Math.max(gap, ang[i] - ang[i - 1]);
+    const bl = Math.hypot(bx, by) || 1;
+    cyl.push({ a, P: [c.x * u[0] + c.y * w[0], c.x * u[1] + c.y * w[1], c.x * u[2] + c.y * w[2]], r: c.r, t0, t1, cov: TAU - gap, conc: inward > 0.8 * n,
+      bulge: [(bx * u[0] + by * w[0]) / bl, (bx * u[1] + by * w[1]) / bl, (bx * u[2] + by * w[2]) / bl] });
+  }
+  const used = new Uint8Array(cyl.length), merged = [];
+  for (let i = 0; i < cyl.length; i++) {
+    if (used[i]) continue; used[i] = 1;
+    const h = cyl[i], m = { a: h.a, P: h.P, r: h.r, t0: h.t0, t1: h.t1, cov: h.cov, conc: h.conc, n: 1, bs: h.bulge.map(x => x * h.cov) };
+    for (let j = i + 1; j < cyl.length; j++) {
+      if (used[j]) continue; const g = cyl[j], d = dot3(h.a, g.a);
+      if (Math.abs(d) < 0.9995 || Math.abs(g.r - h.r) > 0.02 * h.r + 0.02) continue;
+      const D = [g.P[0] - h.P[0], g.P[1] - h.P[1], g.P[2] - h.P[2]], al = dot3(D, h.a);
+      if (Math.hypot(D[0] - al * h.a[0], D[1] - al * h.a[1], D[2] - al * h.a[2]) > 0.03 * h.r + 0.03) continue;
+      const g0 = d > 0 ? g.t0 : -g.t1, g1 = d > 0 ? g.t1 : -g.t0;
+      if (g0 > m.t1 + 0.5 || g1 < m.t0 - 0.5) continue;
+      used[j] = 1; m.t0 = Math.min(m.t0, g0); m.t1 = Math.max(m.t1, g1); m.cov += g.cov; m.conc = m.conc && g.conc; m.n++;
+      for (let k = 0; k < 3; k++) m.bs[k] += g.bulge[k] * g.cov;
+    }
+    const bl = Math.hypot(m.bs[0], m.bs[1], m.bs[2]); m.bulge = bl > 1e-9 ? m.bs.map(x => x / bl) : null;   // middle of the arc
+    merged.push(m);
+  }
+  const holes = [], halves = [];
+  for (const m of merged) {
+    if (!m.conc || m.cov < 2.6 || m.t1 - m.t0 > Math.max(25 * m.r, 3)) continue;   // >=150 deg, not a long bore
+    if (m.bulge && m.cov < 4.4) halves.push(m);                                      // half arc: maybe a slot end
+    else holes.push({ kind: 'hole', a: m.a, P: m.P, r: m.r, t0: m.t0, t1: m.t1 });
+  }
+  const hu = new Uint8Array(halves.length);
+  for (let i = 0; i < halves.length; i++) {
+    if (hu[i]) continue; const h = halves[i]; let best = -1, bestL = Infinity, bestDp = null;
+    for (let j = 0; j < halves.length; j++) {
+      if (j === i || hu[j]) continue; const g = halves[j], d = dot3(h.a, g.a);
+      if (Math.abs(d) < 0.9995 || Math.abs(g.r - h.r) > 0.02 * h.r + 0.02) continue;
+      const g0 = d > 0 ? g.t0 : -g.t1, g1 = d > 0 ? g.t1 : -g.t0; if (g0 > h.t1 + 0.5 || g1 < h.t0 - 0.5) continue;
+      const D = [g.P[0] - h.P[0], g.P[1] - h.P[1], g.P[2] - h.P[2]], al = dot3(D, h.a), Dp = [D[0] - al * h.a[0], D[1] - al * h.a[1], D[2] - al * h.a[2]], L = Math.hypot(Dp[0], Dp[1], Dp[2]);
+      if (L < 0.05 * h.r || L > 30 * h.r) continue;
+      if (dot3(h.bulge, Dp) / L > -0.7 || dot3(g.bulge, Dp) / L < 0.7) continue;  // the two ends face each other
+      if (L < bestL) { bestL = L; best = j; bestDp = Dp; }
+    }
+    if (best < 0) continue;
+    const g = halves[best], d = dot3(h.a, g.a); hu[i] = hu[best] = 1;
+    const g0 = d > 0 ? g.t0 : -g.t1, g1 = d > 0 ? g.t1 : -g.t0;
+    holes.push({ kind: 'slot', a: h.a, P: [(h.P[0] + g.P[0]) / 2, (h.P[1] + g.P[1]) / 2, (h.P[2] + g.P[2]) / 2], r: (h.r + g.r) / 2,
+      t0: Math.min(h.t0, g0), t1: Math.max(h.t1, g1), len: bestL + h.r + g.r, dir: bestDp.map(x => x / bestL) });
+  }
+  for (let i = 0; i < halves.length; i++) if (!hu[i]) { const h = halves[i]; holes.push({ kind: 'hole', a: h.a, P: h.P, r: h.r, t0: h.t0, t1: h.t1 }); }
+  return holes;
+}
+function ffProcess(res) {
+  const names = {}, meshes = [], transfer = [];
+  (function walk(node, path) {
+    const p = node.name ? (path ? path + ' / ' + node.name : node.name) : path;
+    (node.meshes || []).forEach(i => { names[i] = p; }); (node.children || []).forEach(ch => walk(ch, p));
+  })(res.root || {}, '');
+  for (let i = 0; i < res.meshes.length; i++) {
+    const m = res.meshes[i];
+    const pos = new Float32Array(m.attributes.position.array);
+    const nrm = m.attributes.normal ? new Float32Array(m.attributes.normal.array) : null;
+    const idx = new Uint32Array(m.index.array);
+    const faces = (m.brep_faces || []).map(f => ({ first: f.first, last: f.last, color: f.color || null }));
+    let holes = [];
+    try { if (nrm && nrm.length === pos.length) holes = ffFindHoles(pos, nrm, idx, faces); } catch (e) { holes = []; }
+    meshes.push({ name: m.name || names[i] || 'Part ' + (i + 1), color: m.color || null, pos, nrm, idx, faces, holes });
+    transfer.push(pos.buffer, idx.buffer); if (nrm) transfer.push(nrm.buffer);
+  }
+  return { meshes, transfer };
+}
+/*CORE:END*/
+
+const WORKER_MAIN = `
+let occtReady = null;
+self.onmessage = async (ev) => {
+  const { buf, base, params } = ev.data;
+  try {
+    if (!occtReady) { self.postMessage({ type: 'status', text: 'Loading STEP engine' }); importScripts(base + 'occt-import-js.js'); occtReady = occtimportjs({ locateFile: (p) => base + p }); }
+    const occt = await occtReady;
+    self.postMessage({ type: 'status', text: 'Reading STEP' });
+    const res = occt.ReadStepFile(new Uint8Array(buf), params);
+    if (!res || !res.success) throw new Error('This file could not be read as STEP.');
+    self.postMessage({ type: 'status', text: 'Finding holes' });
+    const out = ffProcess(res); const tr = out.transfer; delete out.transfer;
+    self.postMessage({ type: 'done', out }, tr);
+  } catch (e) { occtReady = null; self.postMessage({ type: 'error', text: (e && e.message) || String(e) }); }
+};`;
+let worker = null, phase = '';
+function getWorker() {
+  if (worker) return worker;
+  const src = [ffEig3, ffFitCircle, ffFindHoles, ffProcess].map(f => f.toString()).join('\n') + WORKER_MAIN;
+  worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+  return worker;
+}
+function runWorker(buf) {
+  return new Promise((resolve, reject) => {
+    const w = getWorker();
+    w.onmessage = ev => { const d = ev.data; if (d.type === 'status') phase = d.text; else if (d.type === 'done') resolve(d.out); else reject(new Error(d.text)); };
+    w.onerror = e => { e.preventDefault?.(); worker?.terminate(); worker = null; reject(new Error('The STEP engine could not load. Check the internet connection.')); };
+    w.postMessage({ buf, base: OCCT_BASE, params: OCCT_PARAMS }, [buf]);
+  });
+}
+
+// ---------- state ----------
+const S = {
+  model: null, size: new THREE.Vector3(1, 1, 1), axL: 'x', tab: 'model',
+  up: LS.get('up', '+Y'), opacity: 1, edges: LS.get('edges', true), colors: true, showHoles: LS.get('showHoles', true),
+  pickA: null, pickB: null, target: 'A',
+  stepMM: LS.get('stepMM', 10), stepDeg: LS.get('stepDeg', 1), keepLevel: LS.get('keepLevel', true), rotAbout: 'centre',
+  ar: null, arOK: false, saved: null
+};
+
+// ---------- three.js ----------
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.setClearColor(0x000000, 0);
+renderer.xr.enabled = true;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.01, 500);
+camera.position.set(8, 5, 10); scene.add(camera);
+const head = new THREE.DirectionalLight(0xffffff, 1.2); head.position.set(0.4, 0.7, 0); camera.add(head); head.target.position.set(0, 0, -1); camera.add(head.target);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8e96a3, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 0.9); sun.position.set(4, 10, 6); scene.add(sun);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.12; controls.screenSpacePanning = true;
+
+const pivot = new THREE.Group(); scene.add(pivot);          // box pose in the world (AR) — identity in 3D view
+const content = new THREE.Group(); pivot.add(content);      // up-axis fix, mm -> m, bottom-centre at origin
+const modelGroup = new THREE.Group(); content.add(modelGroup);
+const markGroup = new THREE.Group(); content.add(markGroup);
+const arMarks = new THREE.Group(); scene.add(arMarks);      // real holes, alignment lines, gap probes (world space)
+const labelGroup = new THREE.Group(); scene.add(labelGroup);
+const edgeMat = new THREE.LineBasicMaterial({ color: 0x1d2126, transparent: true, opacity: 0.5, depthWrite: false });
+const raycaster = new THREE.Raycaster();
+let grid = null, holePoints = null;
+
+const reticle = (() => {
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.034, 0.044, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.95 }));
+  const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0055, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: COL.acc, depthTest: false, transparent: true }));
+  ring.renderOrder = dot.renderOrder = 60; g.add(ring, dot); g.matrixAutoUpdate = false; g.visible = false; return g;
+})();
+scene.add(reticle);
+
+function disposeTree(o) { o.traverse(x => { x.geometry?.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; ms.forEach(m => { if (m !== edgeMat) { m.map?.dispose(); m.dispose(); } }); }); }
+function clearGroup(g) { for (const o of [...g.children]) { g.remove(o); disposeTree(o); } }
+function edgeColor() { edgeMat.color.set(S.ar ? 0xffffff : dark.matches ? 0xdfe3e8 : 0x1d2126); edgeMat.opacity = S.ar ? 0.7 : 0.5; }
+function makeGrid(sizeM) {
+  if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
+  const n = Math.max(2, Math.ceil(sizeM));
+  grid = new THREE.GridHelper(n, n, dark.matches ? 0x4a4f57 : 0x9aa1ab, dark.matches ? 0x2d3136 : 0xc3c8cf);
+  grid.material.transparent = true; grid.material.opacity = 0.6; grid.material.depthWrite = false; grid.visible = !S.ar; scene.add(grid);
+}
+
+// ---------- layout: keep the model centred in the part of the screen the panel leaves free ----------
+function freeRect() {
+  const W = innerWidth, H = innerHeight, top = $('bar').getBoundingClientRect().bottom, sh = $('sheet');
+  if (!S.model || sh.hidden) return { W, H, x: 0, y: top, w: W, h: H - top };
+  const r = sh.getBoundingClientRect();
+  if (r.width >= W - 2) return { W, H, x: 0, y: top, w: W, h: Math.max(H * 0.3, r.top - top) };
+  return { W, H, x: 0, y: top, w: Math.max(W * 0.4, r.left), h: H - top };
+}
+function updateLayout() {
+  if (renderer.xr.isPresenting) return;
+  const W = innerWidth, H = innerHeight;
+  renderer.setSize(W, H, false); camera.aspect = W / H;
+  const f = freeRect();
+  camera.setViewOffset(W, H, W / 2 - (f.x + f.w / 2), H / 2 - (f.y + f.h / 2), W, H);
+  camera.updateProjectionMatrix();
+}
+function frameCamera() {
+  if (!S.model) return;
+  updateLayout();
+  const sz = S.size, c = new THREE.Vector3(0, sz.y / 2, 0), rad = Math.max(0.05, sz.length() / 2), f = freeRect();
+  const tv = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+  const half = Math.atan(Math.min(tv * f.h / f.H, tv * camera.aspect * f.w / f.W));
+  const dist = rad / Math.sin(half) * 1.02, dir = new THREE.Vector3(0.95, 0.55, 1.25).normalize();
+  camera.position.copy(c).addScaledVector(dir, dist);
+  camera.near = Math.max(0.002, dist / 400); camera.far = dist * 40; camera.updateProjectionMatrix();
+  controls.target.copy(c); controls.maxDistance = dist * 6; controls.update();
+}
+addEventListener('resize', () => updateLayout());
+new ResizeObserver(() => updateLayout()).observe($('sheet'));
+
+// ---------- loading ----------
+async function loadFile(file) {
+  if (!file) return;
+  if (!/\.(step|stp)$/i.test(file.name)) { toast('Choose a .step or .stp file'); return; }
+  const buf = await file.arrayBuffer();
+  await loadBuffer(buf, file.name);
+}
+async function loadBuffer(buf, name) {
+  busy(true, 'Opening ' + name, 'Starting');
+  const t0 = performance.now(); phase = 'Starting';
+  const tick = setInterval(() => { $('busySub').textContent = phase + ' · ' + Math.round((performance.now() - t0) / 1000) + ' s'; }, 400);
+  try {
+    const out = await runWorker(buf);
+    buildModel(out, name);
+    const n = S.model.holes.length, ns = S.model.holes.filter(h => h.kind === 'slot').length, nh = n - ns;
+    toast(n ? `Found ${nh} hole${nh === 1 ? '' : 's'}${ns ? ` and ${ns} slot${ns === 1 ? '' : 's'}` : ''}. Check the up axis, then pick holes A and B.` : 'No round holes found: taps will use surface points.', 4200);
+  } catch (e) { toast(e.message || String(e), 6000); }
+  finally { clearInterval(tick); busy(false); }
+}
+function buildModel(out, name) {
+  if (S.model) { clearGroup(modelGroup); S.model = null; }
+  const meshes = [], holes = []; let tris = 0;
+  const lin = c => { const k = new THREE.Color().setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace); return [k.r, k.g, k.b]; };
+  out.meshes.forEach((m, mi) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(m.pos, 3));
+    if (m.nrm && m.nrm.length === m.pos.length) g.setAttribute('normal', new THREE.BufferAttribute(m.nrm, 3));
+    g.setIndex(new THREE.BufferAttribute(m.idx, 1));
+    if (!g.attributes.normal) g.computeVertexNormals();
+    let vcol = false;
+    if (m.faces.some(f => f.color)) {
+      const col = new Float32Array(m.pos.length), b = lin(m.color || DEF_RGB);
+      for (let i = 0; i < col.length; i += 3) col.set(b, i);
+      for (const f of m.faces) { if (!f.color) continue; const c = lin(f.color); for (let t = f.first; t <= f.last; t++) for (let k = 0; k < 3; k++) col.set(c, 3 * m.idx[3 * t + k]); }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3)); vcol = true;
+    }
+    g.computeBoundingBox(); g.computeBoundingSphere();
+    const mat = new THREE.MeshStandardMaterial({ metalness: 0.08, roughness: 0.6, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+    const mesh = new THREE.Mesh(g, mat); mesh.userData = { name: m.name, base: m.color, vcol };
+    modelGroup.add(mesh); meshes.push(mesh); tris += m.idx.length / 3;
+    for (const h of m.holes) {
+      const a = new THREE.Vector3().fromArray(h.a), P = new THREE.Vector3().fromArray(h.P);
+      holes.push({ kind: h.kind, r: h.r, len: h.len || 0, a, e1: P.clone().addScaledVector(a, h.t0), e2: P.clone().addScaledVector(a, h.t1), depth: h.t1 - h.t0, mi });
+    }
+  });
+  S.model = { name, meshes, holes, tris, parts: meshes.length };
+  S.pickA = S.pickB = null; S.target = 'A';
+  $('fname').textContent = name; $('empty').hidden = true; $('sheet').hidden = false;
+  applyMaterials(); applyUp(); buildEdges(); buildHolePoints(); rebuildPicks();
+  updateModelInfo(); updateHolesUI(); refreshARSupport(); selectTab('model');
+  frameCamera();
+}
+function applyMaterials() {
+  if (!S.model) return;
+  const tr = S.opacity < 0.999;
+  for (const m of S.model.meshes) {
+    const mat = m.material, u = m.userData, useV = S.colors && u.vcol;
+    if (mat.vertexColors !== useV) { mat.vertexColors = useV; mat.needsUpdate = true; }
+    if (useV) mat.color.set(0xffffff); else { const c = (S.colors && u.base) || DEF_RGB; mat.color.setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace); }
+    if (mat.transparent !== tr) { mat.transparent = tr; mat.needsUpdate = true; }
+    mat.opacity = S.opacity; mat.depthWrite = !tr;
+  }
+}
+function applyUp() {
+  const u = new THREE.Vector3().fromArray(UPS[S.up] || UPS['+Y']);
+  content.position.set(0, 0, 0); content.quaternion.setFromUnitVectors(u, UP); content.scale.setScalar(UNIT); content.updateMatrix();
+  const box = new THREE.Box3(), tb = new THREE.Box3();
+  for (const m of S.model.meshes) box.union(tb.copy(m.geometry.boundingBox).applyMatrix4(content.matrix));
+  const c = box.getCenter(new THREE.Vector3());
+  content.position.set(-c.x, -box.min.y, -c.z); content.updateMatrix(); content.updateMatrixWorld(true);
+  S.size = box.getSize(new THREE.Vector3()); S.axL = S.size.x >= S.size.z ? 'x' : 'z';
+  makeGrid(Math.max(S.size.x, S.size.z) * 1.6 + 1);
+  document.querySelectorAll('#upChips .chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.up === S.up));
+}
+function buildEdges() {
+  if (!S.model) return;
+  for (const m of S.model.meshes) {
+    if (S.edges && !m.userData.edges) {
+      const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 30), edgeMat); e.renderOrder = 2; e.raycast = () => {};
+      m.add(e); m.userData.edges = e;
+    }
+    if (m.userData.edges) m.userData.edges.visible = S.edges;
+  }
+}
+function buildHolePoints() {
+  if (holePoints) { content.remove(holePoints); disposeTree(holePoints); holePoints = null; }
+  const hs = S.model?.holes || []; $('holeCount').textContent = hs.length ? '(' + hs.length + ')' : '(none)';
+  if (!hs.length) return;
+  const arr = new Float32Array(hs.length * 6);
+  hs.forEach((h, i) => { const p = h.e1.clone().addScaledVector(h.a, -0.4), q = h.e2.clone().addScaledVector(h.a, 0.4); arr.set([p.x, p.y, p.z, q.x, q.y, q.z], i * 6); });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  holePoints = new THREE.Points(g, new THREE.PointsMaterial({ color: COL.acc, size: 6, sizeAttenuation: false }));
+  holePoints.raycast = () => {}; holePoints.renderOrder = 5; holePoints.visible = S.showHoles; content.add(holePoints);
+}
+
+// ---------- picks ----------
+const pickMM = p => p.hole ? (p.end ? p.hole.e2 : p.hole.e1) : p.mm;                  // file coordinates, mm
+const pickLocal = p => pickMM(p).clone().applyMatrix4(content.matrix);                 // box frame, m
+function pickWorld(p) { pivot.updateMatrix(); return pickLocal(p).applyMatrix4(pivot.matrix); }        // pivot sits directly in the scene
+const pickName = p => p.kind === 'slot' ? `slot ${fmt1(2 * p.r)} × ${fmt1(p.len)}` : p.kind === 'hole' ? `Ø${fmt1(2 * p.r)}` : 'surface point';
+function makePick(h, end) { return { kind: h.kind, hole: h, end, r: h.r, len: h.len, depth: h.depth, axis: h.a.clone().multiplyScalar(end ? 1 : -1) }; }
+// Which end of a hole meets the chassis: the lower face for vertical holes, the inner face (nearer the box centre) for side holes.
+function contactEnd(h) {
+  const e1 = h.e1.clone().applyMatrix4(content.matrix), e2 = h.e2.clone().applyMatrix4(content.matrix), d = e2.clone().sub(e1).normalize();
+  if (Math.abs(d.y) > 0.7) return e1.y <= e2.y ? 0 : 1;
+  d.y = 0; d.normalize(); return Math.abs(e1.dot(d)) <= Math.abs(e2.dot(d)) ? 0 : 1;
+}
+
+function pickAt(x, y, touch) {
+  const rect = canvas.getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1), camera);
+  const P5 = camera.projectionMatrix.elements[5];
+  return pickByRay(raycaster.ray, t => 2 * t / (P5 * rect.height), touch ? 28 : 12);
+}
+// Choose the hole whose rim the ray passes closest to (screen tolerance), unless a surface hides it.
+function pickByRay(ray, worldPerPx, pxTol) {
+  scene.updateMatrixWorld(true);
+  raycaster.ray.copy(ray);
+  const hit = raycaster.intersectObjects(S.model.meshes, false)[0] || null, tHit = hit ? hit.distance : Infinity;
+  const M = content.matrixWorld, sc = new THREE.Vector3().setFromMatrixScale(M).x, p = new THREE.Vector3();
+  let best = null;
+  for (const h of S.model.holes) {
+    const rW = h.r * sc, dW = h.depth * sc; let cand = null;
+    for (let end = 0; end < 2; end++) {
+      p.copy(end ? h.e2 : h.e1).applyMatrix4(M);
+      const t = p.clone().sub(ray.origin).dot(ray.direction); if (t <= 0 || t > tHit + dW + 3 * rW) continue;
+      const d = ray.distanceToPoint(p), tol = Math.max(1.5 * rW, worldPerPx(t) * pxTol); if (d > tol) continue;
+      const c = { end, d, t, s: d / tol };
+      if (!cand || (Math.abs(c.d - cand.d) < 0.3 * rW ? c.t < cand.t : c.d < cand.d)) cand = c;
+    }
+    if (cand && (!best || cand.s < best.s)) best = { h, ...cand };
+  }
+  if (best) return makePick(best.h, contactEnd(best.h));
+  if (hit) return { kind: 'point', mm: content.worldToLocal(hit.point.clone()), axis: hit.face.normal.clone().normalize(), r: 0, depth: 0 };
+  return null;
+}
+function setPick(which, pick) {
+  S['pick' + which] = pick;
+  if (pick) S.target = which === 'A' && !S.pickB ? 'B' : which;
+  rebuildPicks(); updateHolesUI();
+}
+function onTap(x, y, touch) {
+  if (!S.model || S.ar) return;
+  const pick = pickAt(x, y, touch);
+  if (!pick) { toast('Nothing there. Tap on the box, near a hole.'); return; }
+  const w = S.target; setPick(w, pick); haptic(); if (S.tab !== 'holes') selectTab('holes');
+  if (pick.kind === 'point') toast(`No hole at that spot: ${w} uses the surface point.`);
+}
+function rebuildPicks() {
+  clearGroup(markGroup);
+  for (const w of ['A', 'B']) {
+    const p = S['pick' + w]; if (!p) { dropLabel('pick' + w); continue; }
+    const col = w === 'A' ? COL.a : COL.b, r = p.kind === 'point' ? 6 : p.r, g = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, Math.max(0.7, r * 0.16), 8, 40), new THREE.MeshBasicMaterial({ color: col, depthTest: false, transparent: true }));
+    const halo = new THREE.Mesh(new THREE.RingGeometry(r * 2, r * 2.7, 40), new THREE.MeshBasicMaterial({ color: col, depthTest: false, transparent: true, opacity: 0.45, side: THREE.DoubleSide }));
+    ring.renderOrder = halo.renderOrder = 20; g.add(ring, halo);
+    g.position.copy(pickMM(p)); g.quaternion.setFromUnitVectors(ZAX, p.axis.clone().normalize()); markGroup.add(g);
+    setLabel('pick' + w, w, w === 'A' ? CSS.a : CSS.b, () => S.ar && !S.ar.placed ? null : pickWorld(p));
+  }
+  if (S.pickA && S.pickB) {
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([pickMM(S.pickA), pickMM(S.pickB)]), new THREE.LineDashedMaterial({ color: COL.acc, dashSize: 40, gapSize: 25, depthTest: false, transparent: true }));
+    line.computeLineDistances(); line.renderOrder = 19; markGroup.add(line);
+    setLabel('ab', fmt1(spacing().d) + ' mm', CSS.acc, () => (S.ar && !S.ar.placed) ? null : pickWorld(S.pickA).lerp(pickWorld(S.pickB), 0.5));
+  } else dropLabel('ab');
+}
+function spacing() {
+  if (!S.pickA || !S.pickB) return null;
+  const d = pickLocal(S.pickB).sub(pickLocal(S.pickA));
+  return { d: d.length() * 1000, dl: (S.axL === 'x' ? d.x : d.z) * 1000, dw: (S.axL === 'x' ? d.z : d.x) * 1000, dh: d.y * 1000 };
+}
+
+// ---------- screen-size text labels (sprites) ----------
+const labels = new Map();
+function setLabel(key, text, bg, anchor, below = false) {
+  dropLabel(key);
+  const dpr = 2, fs = 28 * dpr, h = 46 * dpr, cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+  const font = `700 ${fs}px Geist, system-ui, sans-serif`; ctx.font = font;
+  const w = Math.ceil(ctx.measureText(text).width + 30 * dpr); cv.width = w; cv.height = h;
+  ctx.font = font; ctx.fillStyle = bg; ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(0, 0, w, h, h / 2); else ctx.rect(0, 0, w, h);
+  ctx.fill(); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, w / 2, h / 2 + dpr);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, sizeAttenuation: false, transparent: true }));
+  sp.center.set(0.5, below ? 1.45 : -0.45); sp.renderOrder = 70; sp.userData.aspect = w / h;
+  labelGroup.add(sp); labels.set(key, { sp, anchor });
+}
+function dropLabel(key) { const l = labels.get(key); if (!l) return; labelGroup.remove(l.sp); l.sp.material.map.dispose(); l.sp.material.dispose(); labels.delete(key); }
+function updateLabels() {
+  const h = S.ar ? 0.05 : 0.034;
+  for (const l of labels.values()) {
+    const p = l.anchor(); if (!p) { l.sp.visible = false; continue; }
+    l.sp.visible = true; l.sp.position.copy(p); l.sp.scale.set(h * l.sp.userData.aspect, h, 1);
+  }
+}
+
+// ---------- UI ----------
+let toastT = 0;
+function toast(msg, ms = 2800) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms); }
+function busy(on, title, sub) { $('busy').hidden = !on; if (on) { $('busyText').textContent = title; $('busySub').textContent = sub || ''; } }
+function haptic() { try { navigator.vibrate?.(12); } catch {} }
+function selectTab(name) {
+  S.tab = name; $('sheet').classList.remove('collapsed');
+  document.querySelectorAll('#sheet .tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === name));
+  document.querySelectorAll('#sheet [data-pane]').forEach(p => { p.hidden = p.dataset.pane !== name; });
+}
+function updateModelInfo() {
+  const m = S.model; if (!m) return;
+  const sz = S.size.clone().multiplyScalar(1000), L = Math.max(sz.x, sz.z), W = Math.min(sz.x, sz.z);
+  const nh = m.holes.filter(h => h.kind === 'hole').length, ns = m.holes.length - nh;
+  $('modelInfo').innerHTML = `<div class="big">${fmt0(L)} × ${fmt0(W)} × ${fmt0(sz.y)}<small> mm</small></div>
+    <div class="fine">Length × width × height · ${m.parts} part${m.parts > 1 ? 's' : ''} · ${m.tris.toLocaleString('en-US')} triangles · ${nh} hole${nh === 1 ? '' : 's'}${ns ? ` · ${ns} slot${ns === 1 ? '' : 's'}` : ''}</div>`;
+}
+function pickRowHTML(w) {
+  const p = S['pick' + w], on = S.target === w;
+  let body;
+  if (!p) body = `<span class="fine">${on ? 'Tap a hole on the model' : 'Not set — tap the letter, then a hole'}</span>`;
+  else {
+    const q = pickMM(p);
+    body = `<b>${p.kind === 'point' ? 'Surface point' : pickName(p)}</b><span class="fine mono">${fmt1(q.x)}, ${fmt1(q.y)}, ${fmt1(q.z)}</span>` +
+      (p.hole ? `<span class="fine">${fmt1(p.depth)} deep · end ${p.end + 1}/2</span>` : '');
+  }
+  return `<button class="tag ${w.toLowerCase()} ${on ? 'on' : ''}" data-target="${w}" aria-label="Set ${w} next">${w}</button><div class="pinfo">${body}</div>` +
+    (p && p.hole ? `<button class="btn sm" data-flip="${w}" title="Use the other end of the hole">Flip end</button>` : '<i class="tr"></i>') +
+    (p ? `<button class="btn sm x" data-clear="${w}" aria-label="Clear ${w}">×</button>` : '<i class="tr"></i>');
+}
+function updateHolesUI() {
+  $('pickA').innerHTML = pickRowHTML('A'); $('pickB').innerHTML = pickRowHTML('B');
+  const s = spacing();
+  $('spacing').innerHTML = s ? `<div class="row"><span class="lbl">A → B spacing</span><span class="big">${fmt1(s.d)}<small> mm</small></span></div>
+    <div class="fine mono">along length ${fmtS(s.dl)} · width ${fmtS(s.dw)} · height ${fmtS(s.dh)}</div>` : '';
+}
+function setOpacity(pct) {
+  pct = Math.max(5, Math.min(100, Math.round(pct))); S.opacity = pct / 100; applyMaterials();
+  for (const id of ['op', 'op2']) $(id).value = pct;
+  for (const id of ['opOut', 'opOut2']) $(id).textContent = pct + '%';
+  document.querySelectorAll('.opchips .chip').forEach(b => b.setAttribute('aria-pressed', +b.dataset.op === pct));
+}
+function setEdges(on) { S.edges = on; LS.set('edges', on); $('edges').checked = $('edges2').checked = on; buildEdges(); }
+
+$('file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; loadFile(f); });
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => { e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) loadFile(f); });
+document.querySelector('#sheet .tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) selectTab(b.dataset.tab); });
+$('grab').addEventListener('click', () => $('sheet').classList.toggle('collapsed'));
+$('upChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-up]'); if (!b || !S.model) return;
+  S.up = b.dataset.up; LS.set('up', S.up); applyUp(); rebuildPicks(); updateModelInfo(); updateHolesUI(); frameCamera();
+});
+$('colors').addEventListener('change', e => { S.colors = e.target.checked; applyMaterials(); });
+for (const id of ['pickA', 'pickB']) $(id).addEventListener('click', e => {
+  const t = e.target.closest('[data-target],[data-flip],[data-clear]'); if (!t) return;
+  if (t.dataset.target) { S.target = t.dataset.target; updateHolesUI(); }
+  if (t.dataset.flip) { const p = S['pick' + t.dataset.flip]; p.end = 1 - p.end; p.axis.negate(); rebuildPicks(); updateHolesUI(); }
+  if (t.dataset.clear) { S.target = t.dataset.clear; setPick(t.dataset.clear, null); }
+});
+$('showHoles').checked = S.showHoles;
+$('showHoles').addEventListener('change', e => { S.showHoles = e.target.checked; LS.set('showHoles', S.showHoles); if (holePoints) holePoints.visible = S.showHoles; });
+for (const id of ['op', 'op2']) $(id).addEventListener('input', e => setOpacity(+e.target.value));
+document.querySelectorAll('.opchips').forEach(el => el.addEventListener('click', e => { const b = e.target.closest('[data-op]'); if (b) setOpacity(+b.dataset.op); }));
+for (const id of ['edges', 'edges2']) $(id).addEventListener('change', e => setEdges(e.target.checked));
+$('arBtn').addEventListener('click', startAR);
+$('qlPrep').addEventListener('click', prepareQuickLook);
+
+// tap-to-pick (ignores drags and pinches)
+const ptrs = new Map(); let tapStart = null;
+canvas.addEventListener('pointerdown', e => {
+  ptrs.set(e.pointerId, 1);
+  tapStart = ptrs.size === 1 ? { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() } : null;
+});
+canvas.addEventListener('pointerup', e => {
+  ptrs.delete(e.pointerId);
+  const s = tapStart; tapStart = null;
+  if (!s || s.id !== e.pointerId || e.button > 0) return;
+  if ((e.clientX - s.x) ** 2 + (e.clientY - s.y) ** 2 < 64 && performance.now() - s.t < 900) onTap(e.clientX, e.clientY, e.pointerType !== 'mouse');
+});
+canvas.addEventListener('pointercancel', e => { ptrs.delete(e.pointerId); tapStart = null; });
+
+// ---------- AR support ----------
+async function arSupport() {
+  if (!window.isSecureContext) return { ok: false, why: 'AR needs a secure https:// page. Put this file on any HTTPS host, then open it in Chrome on an Android phone.' };
+  if (!navigator.xr) return { ok: false, why: isIOS ? 'Safari on iPhone has no WebXR AR. Use AR Quick Look below to see the box at true scale (move it by hand, no hole snap). The full 2-hole tool needs Chrome on Android.' : 'This browser has no WebXR. Open the page in Chrome on an ARCore Android phone.' };
+  try {
+    return (await navigator.xr.isSessionSupported('immersive-ar')) ? { ok: true } : { ok: false, why: 'This device or browser can’t run WebXR AR. Use Chrome on an ARCore-capable Android phone.' };
+  } catch (e) { return { ok: false, why: 'AR is blocked here (' + e.name + '). Open the file directly in Chrome, not inside another app.' }; }
+}
+async function refreshARSupport() {
+  const st = await arSupport(); S.arOK = st.ok;
+  $('arState').innerHTML = st.ok ? '<span class="okc">AR is ready on this device.</span>' : st.why;
+  $('arBtn').hidden = !st.ok; $('arBtn').disabled = !S.model;
+  const ql = isIOS && document.createElement('a').relList.supports('ar');
+  $('qlBox').hidden = !ql; $('qlPrep').disabled = !S.model;
+  $('envNote').textContent = st.ok ? 'AR is available on this device.' : ql ? 'iPhone: full AR tool needs Android Chrome; AR Quick Look is offered instead.' : 'AR needs Chrome on an ARCore Android phone over HTTPS. The 3D view works everywhere.';
+}
+
+// ---------- AR session ----------
+async function startAR() {
+  if (!S.model || S.ar) return;
+  let session;
+  try {
+    session = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay'], domOverlay: { root: $('ui') } });
+  } catch (e) { toast('AR could not start: ' + (e.message || e.name), 6000); return; }
+  S.saved = { pos: camera.position.clone(), target: controls.target.clone(), fov: camera.fov };
+  camera.clearViewOffset();
+  enterARState(session);
+  try {
+    renderer.xr.setReferenceSpaceType('local');
+    await renderer.xr.setSession(session);
+    S.ar.ref = renderer.xr.getReferenceSpace();
+    const viewer = await session.requestReferenceSpace('viewer');
+    try { S.ar.hitSrc = await session.requestHitTestSource({ space: viewer, entityTypes: ['plane', 'point'] }); }
+    catch { S.ar.hitSrc = await session.requestHitTestSource({ space: viewer }); }
+    if (!session.domOverlayState) toast('This browser shows no AR controls. Tap the screen to place the box.', 6000);
+  } catch (e) { toast('AR failed: ' + (e.message || e.name), 6000); session.end().catch(() => {}); }
+}
+function enterARState(session) {
+  S.ar = { session, ref: null, hitSrc: null, hit: new THREE.Vector3(), hitOK: false, hitDist: 0, placed: false, realA: null, realB: null,
+    aligned: false, base: null, offs: { l: 0, w: 0, h: 0, yaw: 0 }, sampling: null, report: null, probes: 0, tab: S.pickA ? 'holes' : 'place', lastUI: 0 };
+  document.body.classList.add('ar');
+  pivot.visible = false; pivot.position.set(0, 0, 0); pivot.quaternion.identity();
+  if (grid) grid.visible = false; controls.enabled = false; edgeColor();
+  if (session) { session.addEventListener('end', onAREnd); session.addEventListener('select', onARSelect); }
+  $('keepLevel').checked = S.keepLevel; $('edges2').checked = S.edges; $('hideBox').checked = !modelGroup.visible;
+  setOpacity(S.opacity * 100); selectATab(S.ar.tab); updateARHoles(); updateMoveUI(); arStatus();
+}
+function onAREnd() {
+  const A = S.ar; if (!A) return;
+  try { A.hitSrc?.cancel(); } catch {}
+  S.ar = null; document.body.classList.remove('ar');
+  clearGroup(arMarks); reticle.visible = false;
+  for (const k of [...labels.keys()]) if (/^(real|probe)/.test(k)) dropLabel(k);
+  pivot.position.set(0, 0, 0); pivot.quaternion.identity(); pivot.visible = true; modelGroup.visible = true;
+  if (grid) grid.visible = true; controls.enabled = true; edgeColor();
+  if (S.saved) { camera.fov = S.saved.fov; camera.zoom = 1; camera.position.copy(S.saved.pos); controls.target.copy(S.saved.target); }
+  camera.matrixAutoUpdate = true;
+  requestAnimationFrame(() => { updateLayout(); controls.update(); });
+}
+function onARSelect() {
+  const A = S.ar; if (!A) return;
+  if (A.tab === 'place') arPlace();
+  else if (A.tab === 'holes' && !A.sampling) { if (S.pickA && !A.realA) arMark('A'); else if (S.pickB && !A.realB) arMark('B'); }
+}
+function selectATab(name) {
+  if (!S.ar) return; S.ar.tab = name;
+  document.querySelectorAll('#arSheet .tab').forEach(b => b.setAttribute('aria-selected', b.dataset.atab === name));
+  document.querySelectorAll('#arSheet [data-apane]').forEach(p => { p.hidden = p.dataset.apane !== name; });
+}
+function arFrame(frame) {
+  const A = S.ar; if (!A || !A.hitSrc || !A.ref) return;
+  const res = frame.getHitTestResults(A.hitSrc), pose = res.length ? res[0].getPose(A.ref) : null;
+  if (pose) {
+    reticle.matrix.fromArray(pose.transform.matrix); reticle.visible = true;
+    const p = pose.transform.position; A.hit.set(p.x, p.y, p.z); A.hitOK = true; A.hitDist = A.hit.distanceTo(camera.position);
+  } else { reticle.visible = false; A.hitOK = false; }
+  arTick();
+}
+function arTick() {
+  const A = S.ar, now = performance.now();
+  if (A.sampling) {
+    const sm = A.sampling;
+    if (A.hitOK && now - sm.t0 > 150) sm.pts.push(A.hit.clone());   // skip the shake of the tap itself
+    if (sm.pts.length >= SAMPLES) { A.sampling = null; finishMark(sm); }
+    else if (now - sm.t0 > 6000) { A.sampling = null; toast('No surface under the crosshair. Get closer and sweep slowly over the chassis.', 4000); updateARHoles(); }
+  }
+  if (now - A.lastUI > 160) { A.lastUI = now; arStatus(); }
+}
+function arStatus() {
+  const A = S.ar; if (!A) return;
+  $('arStatus').textContent = A.sampling ? `Hold steady… ${A.sampling.pts.length}/${SAMPLES}` :
+    !A.hitOK ? 'Scanning — sweep slowly over the ground and chassis' : `Surface ${A.hitDist.toFixed(2)} m away` + (A.tab === 'holes' && S.pickA && !A.realA ? ' · aim at hole A' : A.tab === 'holes' && S.pickB && !A.realB ? ' · aim at hole B' : '');
+}
+function yawFacingCamera() {
+  const f = new THREE.Vector3(); camera.getWorldDirection(f); f.y = 0; if (f.lengthSq() < 1e-6) f.set(0, 0, -1); f.normalize();
+  const right = new THREE.Vector3().crossVectors(f, UP).normalize(), ax = S.axL === 'x' ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+  return Math.atan2(-right.z, right.x) - Math.atan2(-ax.z, ax.x);   // long side of the box runs across the screen
+}
+function setPlaced() {
+  const A = S.ar; A.placed = true; pivot.visible = true; pivot.updateMatrixWorld(true);
+  A.base = { p: pivot.position.clone(), q: pivot.quaternion.clone() }; A.offs = { l: 0, w: 0, h: 0, yaw: 0 };
+  refreshAlignLines(); updateMoveUI(); updateARHoles(); haptic();
+}
+function arPlace() {
+  const A = S.ar; if (!A.hitOK) { toast('Aim at a surface first: wait for the white ring.'); return; }
+  pivot.quaternion.setFromAxisAngle(UP, yawFacingCamera()); pivot.position.copy(A.hit);
+  A.aligned = false; A.report = null; setPlaced();
+  toast('Box placed. Fine-tune it in Move.');
+}
+function arMark(w) {
+  const A = S.ar; if (!A || A.sampling) return;
+  if (!S['pick' + w]) { toast(`Pick hole ${w} on the model first (exit AR → Holes).`, 4000); return; }
+  A.sampling = { which: w, pts: [], t0: performance.now() }; updateARHoles(); arStatus();
+}
+function medianV(pts) { const m = k => { const a = pts.map(p => p[k]).sort((x, y) => x - y), n = a.length; return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2; }; return new THREE.Vector3(m('x'), m('y'), m('z')); }
+function finishMark(sm) {
+  const A = S.ar, p = medianV(sm.pts);
+  A['real' + sm.which] = p; A['spread' + sm.which] = Math.max(...sm.pts.map(q => q.distanceTo(p))) * 1000;
+  addRealMarker(sm.which, p);
+  if (A.realA && A.realB && S.pickA && S.pickB) alignByHoles(); else snapOne(sm.which);
+  haptic(); arStatus();
+}
+function snapOne(w) {
+  const A = S.ar;
+  if (!A.placed) { pivot.quaternion.setFromAxisAngle(UP, yawFacingCamera()); pivot.position.set(0, 0, 0); }
+  pivot.position.add(A['real' + w].clone().sub(pickWorld(S['pick' + w])));
+  A.aligned = false; A.report = null; S.rotAbout = w; setPlaced();
+  toast(w === 'A' && S.pickB ? 'Snapped to hole A. Now mark hole B to set the direction.' : `Snapped to hole ${w}. Use Turn (about hole ${w}) to line it up.`, 4500);
+}
+// Two-hole snap: yaw (and optional tilt) from the A→B direction, midpoints matched so any spacing error is split evenly.
+function alignByHoles() {
+  const A = S.ar, mA = pickLocal(S.pickA), mB = pickLocal(S.pickB), wA = A.realA, wB = A.realB;
+  const dm = mB.clone().sub(mA), dw = wB.clone().sub(wA), hm = Math.hypot(dm.x, dm.z), hw = Math.hypot(dw.x, dw.z);
+  if (hm < 0.05 || hw < 0.05) { toast('Holes A and B must be at least 50 mm apart sideways to set the direction.', 5000); snapOne('A'); return; }
+  const q = new THREE.Quaternion().setFromAxisAngle(UP, Math.atan2(-dw.z, dw.x) - Math.atan2(-dm.z, dm.x));
+  if (!S.keepLevel) q.premultiply(new THREE.Quaternion().setFromUnitVectors(dm.clone().applyQuaternion(q).normalize(), dw.clone().normalize()));
+  pivot.quaternion.copy(q);
+  pivot.position.copy(wA.clone().add(wB).multiplyScalar(0.5)).sub(mA.clone().add(mB).multiplyScalar(0.5).applyQuaternion(q));
+  A.aligned = true; S.rotAbout = 'A'; setPlaced();
+  const lm = dm.length() * 1000, lw = dw.length() * 1000;
+  A.report = { lm, lw, d: lw - lm, slope: THREE.MathUtils.radToDeg(Math.atan2(dw.y, hw) - Math.atan2(dm.y, hm)) };
+  updateARHoles(); toast('Snapped by holes A and B.');
+}
+function rotCentre() {
+  const p = S.rotAbout === 'A' ? S.pickA : S.rotAbout === 'B' ? S.pickB : null;
+  return p ? pickWorld(p) : pivot.position.clone();
+}
+function nudge(kind, sign) {
+  const A = S.ar; if (!A || !A.placed) { toast('Place or snap the box first.'); return; }
+  if (kind === 'h') { pivot.position.y += sign * S.stepMM * UNIT; A.offs.h += sign * S.stepMM; }
+  else if (kind === 'l' || kind === 'w') {
+    const ax = ((kind === 'l') === (S.axL === 'x') ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1)).applyQuaternion(pivot.quaternion);
+    ax.y = 0; if (ax.lengthSq() < 1e-8) return; ax.normalize();
+    pivot.position.addScaledVector(ax, sign * S.stepMM * UNIT); A.offs[kind] += sign * S.stepMM;
+  } else if (kind === 'yaw') {
+    const c = rotCentre(), q = new THREE.Quaternion().setFromAxisAngle(UP, THREE.MathUtils.degToRad(sign * S.stepDeg));
+    pivot.position.sub(c).applyQuaternion(q).add(c); pivot.quaternion.premultiply(q); A.offs.yaw += sign * S.stepDeg;
+  }
+  pivot.updateMatrixWorld(true); refreshAlignLines(); updateMoveUI(); updateARHoles();
+}
+function resetMove() {
+  const A = S.ar; if (!A || !A.base) return;
+  pivot.position.copy(A.base.p); pivot.quaternion.copy(A.base.q); A.offs = { l: 0, w: 0, h: 0, yaw: 0 };
+  pivot.updateMatrixWorld(true); refreshAlignLines(); updateMoveUI(); updateARHoles();
+}
+function updateMoveUI() {
+  const A = S.ar; if (!A) return; const o = A.offs;
+  $('offs').textContent = A.placed ? `Offset  L ${fmtS(o.l)} · W ${fmtS(o.w)} · H ${fmtS(o.h)} mm · ${fmtS(o.yaw)}°` : 'Place or snap the box first.';
+  document.querySelectorAll('#mmChips .chip').forEach(b => b.setAttribute('aria-pressed', +b.dataset.mm === S.stepMM));
+  document.querySelectorAll('#degChips .chip').forEach(b => b.setAttribute('aria-pressed', +b.dataset.deg === S.stepDeg));
+  document.querySelectorAll('#rotChips .chip').forEach(b => { b.setAttribute('aria-pressed', b.dataset.rot === S.rotAbout); b.disabled = b.dataset.rot !== 'centre' && !S['pick' + b.dataset.rot]; });
+}
+function updateARHoles() {
+  const A = S.ar; if (!A) return;
+  const pa = S.pickA, pb = S.pickB, s = spacing();
+  $('arPicks').innerHTML = pa || pb ? `Model: <b style="color:${CSS.a}">A</b> ${pa ? pickName(pa) : '—'} · <b style="color:${CSS.b}">B</b> ${pb ? pickName(pb) : '—'}${s ? ` · ${fmt1(s.d)} mm apart` : ''}`
+    : 'No model holes picked. Exit AR, open the Holes tab and tap two holes. Or use Place + Move.';
+  for (const w of ['A', 'B']) {
+    const b = $('mark' + w); b.disabled = !S['pick' + w] || !!A.sampling;
+    b.textContent = A.sampling?.which === w ? 'Hold steady…' : A['real' + w] ? `Re-mark ${w} ✓` : `Mark real ${w}`;
+  }
+  let html = '';
+  if (A.report) {
+    const r = A.report, ad = Math.abs(r.d), [cls, word] = ad <= 10 ? ['ok', 'matches'] : ad <= 30 ? ['warn', 'check'] : ['bad', 'mismatch'];
+    html += `<div class="row"><span class="lbl">Hole spacing</span><span class="badge ${cls}">${word}</span></div>
+      <div class="mono">model <b>${fmt1(r.lm)}</b> · real <b>${fmt1(r.lw)}</b> · Δ <b>${fmtS(r.d)}</b> mm</div>
+      <div class="fine">Real slope A→B ${fmtS(r.slope)}° vs model${S.keepLevel ? ' · box kept level' : ' · box follows it'}</div>`;
+  }
+  if (A.placed && (A.realA || A.realB)) {
+    const parts = ['A', 'B'].filter(w => A['real' + w] && S['pick' + w]).map(w => `${w} ${fmt1(pickWorld(S['pick' + w]).distanceTo(A['real' + w]) * 1000)}`);
+    html += `<div class="fine mono">Hole offset now: ${parts.join(' · ')} mm · AR accuracy ≈ ±10–20 mm</div>`;
+  }
+  $('arReport').innerHTML = html;
+}
+function addRealMarker(w, p) {
+  const key = 'real' + w, old = arMarks.getObjectByName(key); if (old) { arMarks.remove(old); disposeTree(old); }
+  const g = new THREE.Group(); g.name = key;
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 16, 12), new THREE.MeshBasicMaterial({ color: w === 'A' ? COL.a : COL.b, depthTest: false, transparent: true }));
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.013, 0.018, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+  ring.quaternion.copy(camera.quaternion); dot.renderOrder = ring.renderOrder = 56; g.add(dot, ring); g.position.copy(p); arMarks.add(g);
+  setLabel(key, w + ' real', w === 'A' ? CSS.a : CSS.b, () => p, true);
+}
+function refreshAlignLines() {
+  const A = S.ar; if (!A) return;
+  for (const w of ['A', 'B']) {
+    const key = 'line' + w, real = A['real' + w], pick = S['pick' + w]; let ln = arMarks.getObjectByName(key);
+    if (!real || !pick || !A.placed) { if (ln) ln.visible = false; continue; }
+    if (!ln) {
+      ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: w === 'A' ? COL.a : COL.b, depthTest: false, transparent: true }));
+      ln.name = key; ln.renderOrder = 55; ln.frustumCulled = false; arMarks.add(ln);
+    }
+    const m = pickWorld(pick), pa = ln.geometry.attributes.position; pa.setXYZ(0, m.x, m.y, m.z); pa.setXYZ(1, real.x, real.y, real.z); pa.needsUpdate = true; ln.visible = true;
+  }
+}
+// Gap probe: exact closest point on the box triangles to a real point, plus an inside test (ray parity).
+function probeAt(wp) {
+  scene.updateMatrixWorld(true);
+  const lp = content.worldToLocal(wp.clone()), px = lp.x, py = lp.y, pz = lp.z, tri = new THREE.Triangle(), q = new THREE.Vector3(), bestP = new THREE.Vector3();
+  let best = Infinity, bestMesh = null;
+  for (const m of S.model.meshes) {
+    if (m.geometry.boundingBox.distanceToPoint(lp) >= best) continue;
+    const P = m.geometry.attributes.position.array, I = m.geometry.index.array;
+    for (let i = 0; i < I.length; i += 3) {
+      const a = 3 * I[i], b = 3 * I[i + 1], c = 3 * I[i + 2];
+      const dx = Math.max(Math.min(P[a], P[b], P[c]) - px, px - Math.max(P[a], P[b], P[c]), 0);
+      const dy = Math.max(Math.min(P[a + 1], P[b + 1], P[c + 1]) - py, py - Math.max(P[a + 1], P[b + 1], P[c + 1]), 0);
+      const dz = Math.max(Math.min(P[a + 2], P[b + 2], P[c + 2]) - pz, pz - Math.max(P[a + 2], P[b + 2], P[c + 2]), 0);
+      if (dx * dx + dy * dy + dz * dz >= best * best) continue;
+      tri.a.set(P[a], P[a + 1], P[a + 2]); tri.b.set(P[b], P[b + 1], P[b + 2]); tri.c.set(P[c], P[c + 1], P[c + 2]);
+      tri.closestPointToPoint(lp, q); const d = q.distanceTo(lp);
+      if (d < best) { best = d; bestP.copy(q); bestMesh = m; }
+    }
+  }
+  if (!bestMesh) return null;
+  const rc = new THREE.Raycaster(wp.clone(), new THREE.Vector3(0.5774, 0.5771, 0.5777).normalize());
+  const inside = rc.intersectObject(bestMesh, false).length % 2 === 1;
+  return { mm: best, inside, pWorld: content.localToWorld(bestP.clone()), part: bestMesh.userData.name };
+}
+function arProbe() {
+  const A = S.ar; if (!A.placed) { toast('Place or snap the box first.'); return; }
+  if (!A.hitOK) { toast('Aim the crosshair at the real object first.'); return; }
+  const wp = A.hit.clone(), r = probeAt(wp); if (!r) return;
+  const col = r.inside ? CSS.bad : r.mm < 20 ? CSS.warn : CSS.ok, key = 'probe' + (++A.probes);
+  const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints([wp, r.pWorld]), new THREE.LineBasicMaterial({ color: col, depthTest: false, transparent: true }));
+  ln.name = key; ln.renderOrder = 57; ln.frustumCulled = false; arMarks.add(ln);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.006, 14, 10), new THREE.MeshBasicMaterial({ color: col, depthTest: false, transparent: true })); dot.position.copy(wp); dot.renderOrder = 57; dot.name = key; arMarks.add(dot);
+  const txt = r.inside ? `Clash ${fmt0(r.mm)} mm` : `Gap ${fmt0(r.mm)} mm`;
+  setLabel(key, txt, col, () => wp);
+  const part = r.part && !/step translator|^part \d+$/i.test(r.part) ? r.part.replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;') : 'the box';
+  $('probeOut').innerHTML = `<b style="color:${col}">${txt}</b> to ${part}${r.inside ? ' — the real point is inside the box' : ''}.`;
+  haptic();
+}
+function clearProbes() {
+  for (const o of arMarks.children.filter(o => /^probe/.test(o.name))) { arMarks.remove(o); disposeTree(o); }
+  for (const k of [...labels.keys()]) if (/^probe/.test(k)) dropLabel(k);
+  $('probeOut').textContent = 'Cleared.';
+}
+
+// AR controls
+document.querySelector('#arSheet .tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) selectATab(b.dataset.atab); });
+for (const el of [$('arTop'), $('arSheet')]) el.addEventListener('beforexrselect', e => e.preventDefault());
+$('arExit').addEventListener('click', () => { if (S.ar?.session) S.ar.session.end().catch(() => onAREnd()); else onAREnd(); });
+$('arPlace').addEventListener('click', () => arPlace());
+$('markA').addEventListener('click', () => arMark('A'));
+$('markB').addEventListener('click', () => arMark('B'));
+$('keepLevel').addEventListener('change', e => { S.keepLevel = e.target.checked; LS.set('keepLevel', S.keepLevel); if (S.ar?.realA && S.ar?.realB) alignByHoles(); else updateARHoles(); });
+$('mmChips').addEventListener('click', e => { const b = e.target.closest('[data-mm]'); if (b) { S.stepMM = +b.dataset.mm; LS.set('stepMM', S.stepMM); updateMoveUI(); } });
+$('degChips').addEventListener('click', e => { const b = e.target.closest('[data-deg]'); if (b) { S.stepDeg = +b.dataset.deg; LS.set('stepDeg', S.stepDeg); updateMoveUI(); } });
+$('rotChips').addEventListener('click', e => { const b = e.target.closest('[data-rot]'); if (b && !b.disabled) { S.rotAbout = b.dataset.rot; updateMoveUI(); } });
+$('mvReset').addEventListener('click', resetMove);
+$('hideBox').addEventListener('change', e => { modelGroup.visible = !e.target.checked; });
+$('probeBtn').addEventListener('click', () => arProbe());
+$('probeClear').addEventListener('click', clearProbes);
+let rep = null; const stopRep = () => { clearTimeout(rep); clearInterval(rep); rep = null; };
+$('pad').addEventListener('pointerdown', e => {
+  const b = e.target.closest('[data-n]'); if (!b) return; e.preventDefault();
+  const [k, s] = b.dataset.n.split(','); nudge(k, +s); stopRep();
+  rep = setTimeout(() => { rep = setInterval(() => nudge(k, +s), 90); }, 420);
+});
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('pad').addEventListener(ev, stopRep);
+$('pad').addEventListener('keydown', e => { const b = e.target.closest('[data-n]'); if (b && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); const [k, s] = b.dataset.n.split(','); nudge(k, +s); } });
+
+// ---------- iPhone fallback: AR Quick Look (USDZ at true scale, current opacity) ----------
+async function prepareQuickLook() {
+  if (!S.model) return;
+  const btn = $('qlPrep'); btn.disabled = true; btn.textContent = 'Preparing…';
+  try {
+    const { USDZExporter } = await import('three/addons/exporters/USDZExporter.js');
+    const root = new THREE.Group(), c = new THREE.Group(), mats = new Map();
+    c.position.copy(content.position); c.quaternion.copy(content.quaternion); c.scale.copy(content.scale); root.add(c);
+    for (const m of S.model.meshes) {
+      const base = (S.colors && m.userData.base) || DEF_RGB, key = base.join(',');
+      if (!mats.has(key)) mats.set(key, new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(base[0], base[1], base[2], THREE.SRGBColorSpace), metalness: 0.1, roughness: 0.6, transparent: S.opacity < 0.999, opacity: S.opacity, side: THREE.DoubleSide }));
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', m.geometry.attributes.position); g.setAttribute('normal', m.geometry.attributes.normal); g.setIndex(m.geometry.index);
+      c.add(new THREE.Mesh(g, mats.get(key)));
+    }
+    const data = await new USDZExporter().parseAsync(root, { quickLookCompatible: true, ar: { anchoring: { type: 'plane' }, planeAnchoring: { alignment: 'horizontal' } } });
+    const a = $('qlLink'); if (a.dataset.url) URL.revokeObjectURL(a.dataset.url);
+    a.dataset.url = URL.createObjectURL(new Blob([data], { type: 'model/vnd.usdz+zip' })); a.href = a.dataset.url + '#allowsContentScaling=0'; a.hidden = false;
+    btn.textContent = 'Rebuild (after opacity change)';
+  } catch (e) { toast('Quick Look export failed: ' + e.message, 5000); btn.textContent = 'Prepare AR Quick Look'; }
+  btn.disabled = false;
+}
+
+// ---------- loop ----------
+renderer.setAnimationLoop((time, frame) => {
+  if (S.ar && frame) arFrame(frame); else if (!S.ar) controls.update();
+  scene.updateMatrixWorld();
+  updateLabels();
+  renderer.render(scene, camera);
+});
+dark.addEventListener?.('change', () => { edgeColor(); if (S.model) makeGrid(Math.max(S.size.x, S.size.z) * 1.6 + 1); });
+edgeColor(); setOpacity(100); $('edges').checked = S.edges; updateLayout(); refreshARSupport();
+
+// test / automation hooks
+window.fitforge = { S, THREE, scene, camera, controls, renderer, pivot, content, loadBuffer, pickAt, pickByRay, setPick, makePick, spacing, pickWorld, pickLocal,
+  enterARState, onAREnd, arPlace, arMark, arTick, alignByHoles, nudge, resetMove, probeAt, arProbe, selectATab, setOpacity, setEdges, prepareQuickLook, updateARHoles };
+</script>
+</body>
+</html>
