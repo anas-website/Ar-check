@@ -126,6 +126,16 @@ body.ar #toast{top:calc(env(safe-area-inset-top) + 62px)}
 .pad svg{width:20px;height:20px;flex:none}
 .steprow{display:flex;align-items:center;gap:10px}
 .steprow .lbl{width:64px;flex:none}
+#scanPane{display:none;padding:14px 14px 16px;gap:10px}
+#arSheet.scanning #scanPane{display:grid}
+#arSheet.scanning .tabs,#arSheet.scanning .panes{display:none}
+.bar{height:10px;border-radius:5px;background:rgba(255,255,255,.14);overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:5px;background:var(--acc);transition:width .25s,background .25s}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14px}
+.checks li{display:flex;gap:9px;align-items:center;color:var(--mute)}
+.checks li i{width:15px;height:15px;border-radius:50%;border:2px solid currentColor;flex:none}
+.checks li.ok{color:#f1f3f5}
+.checks li.ok i{background:var(--ok);border-color:var(--ok)}
 @media (min-width:700px){#arSheet{left:auto;width:430px}}
 </style>
 <script type="importmap">
@@ -149,7 +159,7 @@ body.ar #toast{top:calc(env(safe-area-inset-top) + 62px)}
     <ol class="steps">
       <li><span><b>Open</b> the box (.step / .stp, mm)</span></li>
       <li><span><b>Pick holes A and B</b> on the model: two mounting holes far apart</span></li>
-      <li><span><b>Start AR</b>, aim at the same two holes on the truck. The box snaps on; nudge it, ghost it, measure gaps</span></li>
+      <li><span><b>Start AR</b>, scan along the truck until the check passes, then aim at the same two holes. The box snaps on; nudge it, ghost it, measure gaps</span></li>
     </ol>
     <p class="fine" id="envNote" style="margin:8px 0 0"></p>
   </div>
@@ -196,7 +206,7 @@ body.ar #toast{top:calc(env(safe-area-inset-top) + 62px)}
         </div>
         <ol class="steps small">
           <li><span>Pick holes A and B on the model (Holes tab).</span></li>
-          <li><span>Start AR. Sweep the phone slowly over the chassis until the white ring sits on it.</span></li>
+          <li><span>Start AR and scan: walk slowly along the truck until the scan check passes. The box unlocks after that.</span></li>
           <li><span>Aim the crosshair at real hole A, tap Mark A, then hole B. The box snaps on.</span></li>
           <li><span>Fine-tune in Adjust (move, turn, pitch, roll); check clearances in View → Measure gap.</span></li>
         </ol>
@@ -209,6 +219,13 @@ body.ar #toast{top:calc(env(safe-area-inset-top) + 62px)}
   <div id="arTop"><div id="arStatus">Starting AR…</div><button class="btn" id="arExit">Exit</button></div>
   <svg id="cross" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="11" fill="none" stroke="#fff" stroke-width="2"/><path d="M28 3v13M28 40v13M3 28h13M40 28h13" stroke="#fff" stroke-width="2"/><circle cx="28" cy="28" r="2" fill="#ff4f00"/></svg>
   <section id="arSheet">
+    <div id="scanPane">
+      <div class="row"><b style="font-size:17px">Scan the area first</b><span class="big" id="scanPct">0%</span></div>
+      <div class="bar"><i id="scanBar"></i></div>
+      <ul class="checks" id="scanChecks"></ul>
+      <p class="hint" id="scanHint">Walk slowly along the whole truck, camera on the chassis and the floor beside it.</p>
+      <button class="btn wide" id="scanSkip" hidden>Continue anyway (lower accuracy)</button>
+    </div>
     <nav class="tabs" role="tablist">
       <button class="tab" data-atab="place" aria-selected="true">Place</button>
       <button class="tab" data-atab="holes" aria-selected="false">Holes</button>
@@ -219,6 +236,7 @@ body.ar #toast{top:calc(env(safe-area-inset-top) + 62px)}
       <div class="pane" data-apane="place">
         <p class="hint">Aim the crosshair at the ground or the chassis top. The box's bottom-centre lands on it, long side across the screen.</p>
         <button class="btn pri big wide" id="arPlace">Place box here</button>
+        <div class="row"><span class="fine" id="scanBadge"></span><button class="btn sm" id="scanAgain">Scan again</button></div>
       </div>
       <div class="pane" data-apane="holes" hidden>
         <div id="arPicks" class="fine"></div>
@@ -261,6 +279,9 @@ const OCCT_BASE = 'https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/';
 const OCCT_PARAMS = { linearUnit: 'millimeter', linearDeflectionType: 'bounding_box_ratio', linearDeflection: 0.0008, angularDeflection: 0.4 };
 const UNIT = 0.001;            // model millimetres -> metres
 const SAMPLES = 20;            // hit-test samples (median) per real hole
+// Scan gate: thresholds for unlocking the box (metres / mm / seconds)
+const SCAN = { cell: 0.1, maxDots: 6000, minTime: 12, needCells: 150, needSide: 15, stabGood: 6, stabMax: 12, passScore: 80, skipAfter: 45, maxRange: 4 };
+const SCAN_RAYS = [[0.3, 0.3], [-0.3, 0.3], [0.3, -0.3], [-0.3, -0.3], [0.35, 0], [-0.35, 0], [0, 0.35], [0, -0.35]];
 const UP = new THREE.Vector3(0, 1, 0), ZAX = new THREE.Vector3(0, 0, 1);
 const COL = { a: 0x0a84ff, b: 0xe6007e, acc: 0xff4f00 };
 const CSS = { a: '#0a84ff', b: '#e6007e', acc: '#ff4f00', ok: '#12a150', warn: '#c98a00', bad: '#e0342b' };
@@ -477,6 +498,15 @@ const reticle = (() => {
   ring.renderOrder = dot.renderOrder = 60; g.add(ring, dot); g.matrixAutoUpdate = false; g.visible = false; return g;
 })();
 scene.add(reticle);
+const scanPts = (() => {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SCAN.maxDots * 3), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(SCAN.maxDots * 3), 3));
+  g.setDrawRange(0, 0);
+  const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: 6, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.9, depthTest: false }));
+  pts.frustumCulled = false; pts.renderOrder = 58; pts.visible = false; return pts;
+})();
+scene.add(scanPts);
 
 function disposeTree(o) { o.traverse(x => { x.geometry?.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; ms.forEach(m => { if (m !== edgeMat) { m.map?.dispose(); m.dispose(); } }); }); }
 function clearGroup(g) { for (const o of [...g.children]) { g.remove(o); disposeTree(o); } }
@@ -706,6 +736,7 @@ function setLabel(key, text, bg, anchor, below = false) {
 }
 function dropLabel(key) { const l = labels.get(key); if (!l) return; labelGroup.remove(l.sp); l.sp.material.map.dispose(); l.sp.material.dispose(); labels.delete(key); }
 function updateLabels() {
+  if (S.ar && S.ar.phase === 'scan') { for (const l of labels.values()) l.sp.visible = false; return; }
   const h = S.ar ? 0.05 : 0.034;
   for (const l of labels.values()) {
     const p = l.anchor(); if (!p) { l.sp.visible = false; continue; }
@@ -829,22 +860,26 @@ async function startAR() {
     const viewer = await session.requestReferenceSpace('viewer');
     try { S.ar.hitSrc = await session.requestHitTestSource({ space: viewer, entityTypes: ['plane', 'point'] }); }
     catch { S.ar.hitSrc = await session.requestHitTestSource({ space: viewer }); }
+    S.ar.viewer = viewer; addScanRays();
     if (!session.domOverlayState) toast('This browser shows no AR controls. Tap the screen to place the box.', 6000);
   } catch (e) { toast('AR failed: ' + (e.message || e.name), 6000); session.end().catch(() => {}); }
 }
 function enterARState(session) {
   S.ar = { session, ref: null, hitSrc: null, hit: new THREE.Vector3(), hitOK: false, hitDist: 0, placed: false, realA: null, realB: null,
-    aligned: false, base: null, offs: { l: 0, w: 0, h: 0, yaw: 0, pitch: 0, roll: 0 }, sampling: null, report: null, probes: 0, tab: S.pickA ? 'holes' : 'place', lastUI: 0 };
+    aligned: false, base: null, offs: { l: 0, w: 0, h: 0, yaw: 0, pitch: 0, roll: 0 }, sampling: null, report: null, probes: 0, tab: S.pickA ? 'holes' : 'place', lastUI: 0,
+    phase: 'scan', scan: null, scanSrcs: [], viewer: null, scanScore: 0, scanSkipped: false, lossWarn: 0 };
   document.body.classList.add('ar');
   pivot.visible = false; pivot.position.set(0, 0, 0); pivot.quaternion.identity();
   if (grid) grid.visible = false; controls.enabled = false; edgeColor();
   if (session) { session.addEventListener('end', onAREnd); session.addEventListener('select', onARSelect); }
   $('keepLevel').checked = S.keepLevel; $('edges2').checked = S.edges; $('hideBox').checked = !modelGroup.visible;
-  setOpacity(S.opacity * 100); selectATab(S.ar.tab); updateARHoles(); updateMoveUI(); arStatus();
+  setOpacity(S.opacity * 100); selectATab(S.ar.tab); updateARHoles(); updateMoveUI(); startScan(); arStatus();
 }
 function onAREnd() {
   const A = S.ar; if (!A) return;
   try { A.hitSrc?.cancel(); } catch {}
+  for (const src of A.scanSrcs) { try { src.cancel(); } catch {} }
+  scanPts.visible = false; arMarks.visible = true; $('arSheet').classList.remove('scanning');
   S.ar = null; document.body.classList.remove('ar');
   clearGroup(arMarks); reticle.visible = false;
   for (const k of [...labels.keys()]) if (/^(real|probe)/.test(k)) dropLabel(k);
@@ -855,7 +890,7 @@ function onAREnd() {
   requestAnimationFrame(() => { updateLayout(); controls.update(); });
 }
 function onARSelect() {
-  const A = S.ar; if (!A) return;
+  const A = S.ar; if (!A || A.phase === 'scan') return;
   if (A.tab === 'place') arPlace();
   else if (A.tab === 'holes' && !A.sampling) { if (S.pickA && !A.realA) arMark('A'); else if (S.pickB && !A.realB) arMark('B'); }
 }
@@ -864,6 +899,133 @@ function selectATab(name) {
   document.querySelectorAll('#arSheet .tab').forEach(b => b.setAttribute('aria-selected', b.dataset.atab === name));
   document.querySelectorAll('#arSheet [data-apane]').forEach(p => { p.hidden = p.dataset.apane !== name; });
 }
+// ----- scan gate: sample surfaces, score the scan, unlock the box when it passes -----
+function newScan() { const now = performance.now(); return { t0: now, cells: new Map(), dots: 0, lastLoss: now, lost: false, losses: 0, speed: 0, omega: 0, prev: null, lastEval: 0, q: null, passed: false }; }
+function startScan() {
+  const A = S.ar; if (!A) return;
+  A.phase = 'scan'; A.scan = newScan(); scanPts.geometry.setDrawRange(0, 0); scanPts.visible = true;
+  pivot.visible = false; arMarks.visible = false;                         // the box stays hidden until the scan passes
+  $('arSheet').classList.add('scanning');
+  renderScanUI({ t: 0, len: 0, target: scanTarget(), cells: 0, side: 0, needSide: sideHoles(), stab: null, steady: false, score: 0, pass: false });
+}
+async function addScanRays() {
+  const A = S.ar; if (!A || !A.session || !A.viewer || typeof XRRay === 'undefined') return;
+  for (const src of A.scanSrcs) { try { src.cancel(); } catch {} }
+  A.scanSrcs = [];
+  for (const [dx, dy] of SCAN_RAYS) {
+    const offsetRay = new XRRay({ x: 0, y: 0, z: 0, w: 1 }, { x: dx, y: dy, z: -1, w: 0 });
+    let src = null;
+    try { src = await A.session.requestHitTestSource({ space: A.viewer, offsetRay, entityTypes: ['plane', 'point'] }); }
+    catch { try { src = await A.session.requestHitTestSource({ space: A.viewer, offsetRay }); } catch {} }
+    if (src && S.ar === A) A.scanSrcs.push(src);
+  }
+}
+// One surface sample: 10 cm cells; per cell keep the first normal and the running spread of the distance along it.
+function scanAdd(sc, px, py, pz, nx, ny, nz) {
+  const key = Math.floor(px / SCAN.cell) + ',' + Math.floor(py / SCAN.cell) + ',' + Math.floor(pz / SCAN.cell);
+  let c = sc.cells.get(key);
+  if (!c) {
+    if (sc.cells.size >= SCAN.maxDots * 4) return;
+    c = { i: -1, p: [px, py, pz], n: [nx, ny, nz], cnt: 0, mean: 0, m2: 0 }; sc.cells.set(key, c);
+    if (sc.dots < SCAN.maxDots) {
+      c.i = sc.dots++; const g = scanPts.geometry;
+      g.attributes.position.setXYZ(c.i, px, py, pz); g.attributes.position.needsUpdate = true;
+      g.attributes.color.setXYZ(c.i, 0.85, 0.85, 0.85); g.attributes.color.needsUpdate = true; g.setDrawRange(0, sc.dots);
+    }
+  }
+  if (nx * c.n[0] + ny * c.n[1] + nz * c.n[2] < 0.9) return;          // a different surface in the same cell
+  const d = px * c.n[0] + py * c.n[1] + pz * c.n[2], delta = d - c.mean;
+  c.cnt++; c.mean += delta / c.cnt; c.m2 += delta * (d - c.mean);
+}
+function scanExtent(xs, zs) {                                         // scanned length along the main horizontal direction
+  const n = xs.length; if (n < 2) return 0;
+  let mx = 0, mz = 0; for (let i = 0; i < n; i++) { mx += xs[i]; mz += zs[i]; } mx /= n; mz /= n;
+  let sxx = 0, szz = 0, sxz = 0; for (let i = 0; i < n; i++) { const u = xs[i] - mx, v = zs[i] - mz; sxx += u * u; szz += v * v; sxz += u * v; }
+  const a = 0.5 * Math.atan2(2 * sxz, sxx - szz), dx = Math.cos(a), dz = Math.sin(a);
+  const sp = xs.map((x, i) => (x - mx) * dx + (zs[i] - mz) * dz).sort((p, q) => p - q);
+  return sp[Math.min(n - 1, Math.floor(n * 0.97))] - sp[Math.floor(n * 0.03)];
+}
+function scanTarget() { const sp = spacing(), L = Math.max(S.size.x, S.size.z); return Math.min(8, Math.max(2, sp ? sp.d / 1000 + 1 : 0.8 * L)); }
+function sideHoles() { return [S.pickA, S.pickB].some(p => p && Math.abs(p.axis.clone().applyQuaternion(content.quaternion).normalize().y) < 0.7); }
+function scanFrame(frame) {
+  const A = S.ar, sc = A.scan, now = performance.now(), vp = frame.getViewerPose(A.ref), tracking = !!vp && !vp.emulatedPosition;
+  if (!tracking) { if (!sc.lost) sc.losses++; sc.lost = true; sc.lastLoss = now; } else sc.lost = false;
+  if (A.phase === 'ready') {
+    if (!tracking && A.placed && now - A.lossWarn > 10000) { A.lossWarn = now; toast('Tracking was lost: check the box against the holes and re-mark them if it moved.', 5000); }
+    return;
+  }
+  if (!tracking) return;
+  const pos = vp.transform.position, o = vp.transform.orientation;
+  if (sc.prev) {
+    const dt = Math.max(0.001, (now - sc.prev.t) / 1000), dq = Math.min(1, Math.abs(o.x * sc.prev.o.x + o.y * sc.prev.o.y + o.z * sc.prev.o.z + o.w * sc.prev.o.w));
+    sc.speed = sc.speed * 0.9 + 0.1 * Math.hypot(pos.x - sc.prev.p.x, pos.y - sc.prev.p.y, pos.z - sc.prev.p.z) / dt;
+    sc.omega = sc.omega * 0.9 + 0.1 * (2 * Math.acos(dq)) / dt;
+  }
+  sc.prev = { t: now, p: { x: pos.x, y: pos.y, z: pos.z }, o: { x: o.x, y: o.y, z: o.z, w: o.w } };
+  for (const src of [A.hitSrc, ...A.scanSrcs]) {
+    const r = frame.getHitTestResults(src); if (!r.length) continue;
+    const hp = r[0].getPose(A.ref); if (!hp) continue;
+    const t = hp.transform.position, m = hp.transform.matrix;
+    if (Math.hypot(t.x - pos.x, t.y - pos.y, t.z - pos.z) > SCAN.maxRange) continue;   // far hits are unreliable
+    scanAdd(sc, t.x, t.y, t.z, m[4], m[5], m[6]);                                       // pose Y axis = surface normal
+  }
+}
+function scanEval() {
+  const A = S.ar, sc = A.scan, now = performance.now(), t = (now - sc.t0) / 1000, col = scanPts.geometry.attributes.color;
+  const xs = [], zs = [], sd = []; let cells = 0, side = 0;
+  for (const c of sc.cells.values()) {
+    if (c.cnt < 2) continue;
+    cells++; if (Math.abs(c.n[1]) < 0.5) side++; xs.push(c.p[0]); zs.push(c.p[2]);
+    const s = c.cnt >= 6 ? Math.sqrt(c.m2 / (c.cnt - 1)) * 1000 : null;
+    if (s !== null) sd.push(s);
+    if (c.i >= 0) { const k = s === null ? [0.85, 0.85, 0.85] : s <= SCAN.stabGood ? [0.1, 0.85, 0.35] : s <= SCAN.stabMax ? [1, 0.72, 0.1] : [1, 0.25, 0.2]; col.setXYZ(c.i, k[0], k[1], k[2]); }
+  }
+  col.needsUpdate = true;
+  sd.sort((a, b) => a - b);
+  const len = scanExtent(xs, zs), target = scanTarget(), cover = Math.min(1, len / target), stab = sd.length >= 15 ? sd[sd.length >> 1] : null;
+  const steady = t >= SCAN.minTime && now - sc.lastLoss > 3000, needSide = sideHoles();
+  const fStab = stab === null ? 0 : Math.max(0, Math.min(1, 1 - (stab - SCAN.stabGood) / (2 * (SCAN.stabMax - SCAN.stabGood))));
+  const fSide = needSide ? Math.min(1, side / SCAN.needSide) : 1, fTrack = steady ? 1 : sc.lost ? 0 : 0.6 * Math.min(1, t / SCAN.minTime);
+  const score = Math.round(100 * (0.3 * cover + 0.15 * Math.min(1, cells / SCAN.needCells) + 0.25 * fStab + 0.15 * fTrack + 0.15 * fSide));
+  const pass = score >= SCAN.passScore && cover >= 1 && steady && stab !== null && stab <= SCAN.stabMax && cells >= SCAN.needCells && fSide >= 1;
+  sc.q = { t, len, target, cells, side, needSide, stab, steady, score, pass };
+  renderScanUI(sc.q); arStatus();
+  if (pass && !sc.passed) { sc.passed = true; finishScan(false); }
+  return sc.q;
+}
+function renderScanUI(q) {
+  const A = S.ar, sc = A && A.scan;
+  $('scanPct').textContent = q.score + '%'; $('scanBar').style.width = q.score + '%';
+  $('scanBar').style.background = q.pass ? 'var(--ok)' : q.score >= 60 ? 'var(--warn)' : 'var(--acc)';
+  const row = (ok, txt) => `<li class="${ok ? 'ok' : ''}"><i></i><span>${txt}</span></li>`;
+  $('scanChecks').innerHTML =
+    row(q.steady, q.steady ? 'Tracking steady' : sc && sc.lost ? 'Tracking lost' : `Keep scanning ${Math.max(1, Math.ceil(SCAN.minTime - q.t))} s more` + (sc && sc.losses ? ' (tracking dropped)' : '')) +
+    row(q.len >= q.target, `Covered ${q.len.toFixed(1)} of ${q.target.toFixed(1)} m along the truck`) +
+    row(q.cells >= SCAN.needCells, `Surfaces found: ${q.cells} patches`) +
+    (q.needSide ? row(q.side >= SCAN.needSide, `Chassis sides: ${Math.min(q.side, SCAN.needSide)} of ${SCAN.needSide} patches`) : '') +
+    row(q.stab !== null && q.stab <= SCAN.stabMax, q.stab === null ? 'Steadiness: measuring…' : `Surfaces steady to ±${q.stab.toFixed(1)} mm`);
+  let hint = 'Walk slowly along the whole truck, camera on the chassis and the floor beside it.';
+  if (sc && sc.lost) hint = 'Tracking lost: point at a textured surface and hold still for a moment.';
+  else if (sc && (sc.speed > 0.8 || sc.omega > 1.6)) hint = 'Slow down: move the phone more slowly.';
+  else if (q.len < q.target && q.t > 3) hint = `Keep walking along the truck: ${(q.target - q.len).toFixed(1)} m to go.`;
+  else if (q.needSide && q.side < SCAN.needSide) hint = 'Aim at the sides of the chassis rails from 0.5–1 m.';
+  else if (q.stab !== null && q.stab > SCAN.stabMax) hint = 'Surfaces look unsteady: add light or texture (tape, printed targets).';
+  else if (q.cells < SCAN.needCells) hint = 'Sweep over more of the truck and floor.';
+  $('scanHint').textContent = hint;
+  $('scanSkip').hidden = q.pass || q.t < SCAN.skipAfter;
+}
+function finishScan(skipped) {
+  const A = S.ar; if (!A || A.phase !== 'scan') return;
+  A.phase = 'ready'; A.scanScore = A.scan.q ? A.scan.q.score : 0; A.scanSkipped = skipped;
+  $('arSheet').classList.remove('scanning'); scanPts.visible = false;
+  pivot.visible = A.placed; arMarks.visible = true;
+  for (const src of A.scanSrcs) { try { src.cancel(); } catch {} }
+  A.scanSrcs = [];
+  $('scanBadge').textContent = skipped ? `Scan ${A.scanScore}% (skipped: lower accuracy)` : `Scan quality ${A.scanScore}%`;
+  selectATab(A.tab); arStatus(); haptic();
+  toast(skipped ? `Continuing with a ${A.scanScore}% scan: the box may drift.` : `Scan OK (${A.scanScore}%). ${S.pickA ? 'Now mark the holes.' : 'Place the box.'}`, 4500);
+}
+function rescan() { const A = S.ar; if (!A) return; startScan(); addScanRays(); arStatus(); }
 function arFrame(frame) {
   const A = S.ar; if (!A || !A.hitSrc || !A.ref) return;
   const res = frame.getHitTestResults(A.hitSrc), pose = res.length ? res[0].getPose(A.ref) : null;
@@ -871,6 +1033,7 @@ function arFrame(frame) {
     reticle.matrix.fromArray(pose.transform.matrix); reticle.visible = true;
     const p = pose.transform.position; A.hit.set(p.x, p.y, p.z); A.hitOK = true; A.hitDist = A.hit.distanceTo(camera.position);
   } else { reticle.visible = false; A.hitOK = false; }
+  if (A.scan) scanFrame(frame);
   arTick();
 }
 function arTick() {
@@ -881,10 +1044,12 @@ function arTick() {
     if (sm.pts.length >= SAMPLES) { A.sampling = null; finishMark(sm); }
     else if (now - sm.t0 > 6000) { A.sampling = null; toast('No surface under the crosshair. Get closer and sweep slowly over the chassis.', 4000); updateARHoles(); }
   }
+  if (A.phase === 'scan' && A.scan && now - A.scan.lastEval > 250) { A.scan.lastEval = now; scanEval(); }
   if (now - A.lastUI > 160) { A.lastUI = now; arStatus(); }
 }
 function arStatus() {
   const A = S.ar; if (!A) return;
+  if (A.phase === 'scan') { $('arStatus').textContent = `Scanning… ${A.scan && A.scan.q ? A.scan.q.score : 0}%` + (A.hitOK ? ` · surface ${A.hitDist.toFixed(1)} m` : ''); return; }
   $('arStatus').textContent = A.sampling ? `Hold steady… ${A.sampling.pts.length}/${SAMPLES}` :
     !A.hitOK ? 'Scanning — sweep slowly over the ground and chassis' : `Surface ${A.hitDist.toFixed(2)} m away` + (A.tab === 'holes' && S.pickA && !A.realA ? ' · aim at hole A' : A.tab === 'holes' && S.pickB && !A.realB ? ' · aim at hole B' : '');
 }
@@ -899,13 +1064,15 @@ function setPlaced() {
   refreshAlignLines(); updateMoveUI(); updateARHoles(); haptic();
 }
 function arPlace() {
-  const A = S.ar; if (!A.hitOK) { toast('Aim at a surface first: wait for the white ring.'); return; }
+  const A = S.ar; if (A.phase === 'scan') { toast('Finish the scan first.'); return; }
+  if (!A.hitOK) { toast('Aim at a surface first: wait for the white ring.'); return; }
   pivot.quaternion.setFromAxisAngle(UP, yawFacingCamera()); pivot.position.copy(A.hit);
   A.aligned = false; A.report = null; setPlaced();
   toast('Box placed. Fine-tune it in Move.');
 }
 function arMark(w) {
   const A = S.ar; if (!A || A.sampling) return;
+  if (A.phase === 'scan') { toast('Finish the scan first.'); return; }
   if (!S['pick' + w]) { toast(`Pick hole ${w} on the model first (exit AR → Holes).`, 4000); return; }
   A.sampling = { which: w, pts: [], t0: performance.now() }; updateARHoles(); arStatus();
 }
@@ -1045,7 +1212,8 @@ function probeAt(wp) {
   return { mm: best, inside, pWorld: content.localToWorld(bestP.clone()), part: bestMesh.userData.name };
 }
 function arProbe() {
-  const A = S.ar; if (!A.placed) { toast('Place or snap the box first.'); return; }
+  const A = S.ar; if (A.phase === 'scan') return;
+  if (!A.placed) { toast('Place or snap the box first.'); return; }
   if (!A.hitOK) { toast('Aim the crosshair at the real object first.'); return; }
   const wp = A.hit.clone(), r = probeAt(wp); if (!r) return;
   const col = r.inside ? CSS.bad : r.mm < 20 ? CSS.warn : CSS.ok, key = 'probe' + (++A.probes);
@@ -1069,6 +1237,8 @@ document.querySelector('#arSheet .tabs').addEventListener('click', e => { const 
 for (const el of [$('arTop'), $('arSheet')]) el.addEventListener('beforexrselect', e => e.preventDefault());
 $('arExit').addEventListener('click', () => { if (S.ar?.session) S.ar.session.end().catch(() => onAREnd()); else onAREnd(); });
 $('arPlace').addEventListener('click', () => arPlace());
+$('scanSkip').addEventListener('click', () => finishScan(true));
+$('scanAgain').addEventListener('click', () => rescan());
 $('markA').addEventListener('click', () => arMark('A'));
 $('markB').addEventListener('click', () => arMark('B'));
 $('keepLevel').addEventListener('change', e => { S.keepLevel = e.target.checked; LS.set('keepLevel', S.keepLevel); if (S.ar?.realA && S.ar?.realB) alignByHoles(); else updateARHoles(); });
@@ -1125,7 +1295,7 @@ edgeColor(); setOpacity(100); $('edges').checked = S.edges; updateLayout(); refr
 
 // test / automation hooks
 window.fitforge = { S, THREE, scene, camera, controls, renderer, pivot, content, loadBuffer, pickAt, pickByRay, setPick, makePick, spacing, pickWorld, pickLocal,
-  enterARState, onAREnd, arPlace, arMark, arTick, alignByHoles, nudge, resetMove, probeAt, arProbe, selectATab, setOpacity, setEdges, prepareQuickLook, updateARHoles };
+  enterARState, onAREnd, arPlace, arMark, arTick, scanAdd, scanEval, startScan, finishScan, alignByHoles, nudge, resetMove, probeAt, arProbe, selectATab, setOpacity, setEdges, prepareQuickLook, updateARHoles };
 </script>
 </body>
 </html>
