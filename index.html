@@ -119,9 +119,11 @@ body.ar #toast{top:calc(env(safe-area-inset-top) + 62px)}
 #arSheet .btn.mark.a{background:var(--a);border-color:var(--a)}
 #arSheet .btn.mark.b{background:var(--b);border-color:var(--b)}
 #arSheet .chip{min-height:36px;padding:0 10px}
-.pad{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.pad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.seg .chip{width:100%}
 .pad .btn{min-height:46px;padding:0 6px}
-.pad svg{width:22px;height:22px}
+.pad svg{width:20px;height:20px;flex:none}
 .steprow{display:flex;align-items:center;gap:10px}
 .steprow .lbl{width:64px;flex:none}
 @media (min-width:700px){#arSheet{left:auto;width:430px}}
@@ -196,7 +198,7 @@ body.ar #toast{top:calc(env(safe-area-inset-top) + 62px)}
           <li><span>Pick holes A and B on the model (Holes tab).</span></li>
           <li><span>Start AR. Sweep the phone slowly over the chassis until the white ring sits on it.</span></li>
           <li><span>Aim the crosshair at real hole A, tap Mark A, then hole B. The box snaps on.</span></li>
-          <li><span>Fine-tune in Move; check clearances in View → Measure gap.</span></li>
+          <li><span>Fine-tune in Adjust (move, turn, pitch, roll); check clearances in View → Measure gap.</span></li>
         </ol>
       </div>
     </div>
@@ -210,7 +212,7 @@ body.ar #toast{top:calc(env(safe-area-inset-top) + 62px)}
     <nav class="tabs" role="tablist">
       <button class="tab" data-atab="place" aria-selected="true">Place</button>
       <button class="tab" data-atab="holes" aria-selected="false">Holes</button>
-      <button class="tab" data-atab="move" aria-selected="false">Move</button>
+      <button class="tab" data-atab="move" aria-selected="false">Adjust</button>
       <button class="tab" data-atab="view" aria-selected="false">View</button>
     </nav>
     <div class="panes">
@@ -225,18 +227,19 @@ body.ar #toast{top:calc(env(safe-area-inset-top) + 62px)}
         <label class="sw"><input type="checkbox" id="keepLevel" checked><i class="tr"></i>Keep box level</label>
       </div>
       <div class="pane" data-apane="move" hidden style="gap:10px">
-        <div class="steprow"><span class="lbl">Step</span><div class="chips" id="mmChips"><button class="chip" data-mm="1">1</button><button class="chip" data-mm="5">5</button><button class="chip" data-mm="10">10</button><button class="chip" data-mm="50">50</button><button class="chip" data-mm="100">100 mm</button></div></div>
-        <div class="steprow"><span class="lbl">Turn</span><div class="chips" id="degChips"><button class="chip" data-deg="0.2">0.2</button><button class="chip" data-deg="1">1</button><button class="chip" data-deg="5">5</button><button class="chip" data-deg="15">15°</button></div></div>
-        <div class="pad" id="pad">
-          <button class="btn" data-n="l,-1" aria-label="Move along length, minus">L −</button><button class="btn" data-n="l,1" aria-label="Move along length, plus">L +</button>
-          <button class="btn" data-n="h,1">Up</button>
-          <button class="btn" data-n="yaw,1" aria-label="Turn left"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5M5 3v4h4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
-          <button class="btn" data-n="w,-1" aria-label="Move across width, minus">W −</button><button class="btn" data-n="w,1" aria-label="Move across width, plus">W +</button>
-          <button class="btn" data-n="h,-1">Down</button>
-          <button class="btn" data-n="yaw,-1" aria-label="Turn right"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.1-5M19 3v4h-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+        <div class="seg" id="adjMode"><button class="chip" data-mode="move">Move</button><button class="chip" data-mode="rot">Rotate</button></div>
+        <div class="steprow" data-adj="move"><span class="lbl">Step</span><div class="chips" id="mmChips"><button class="chip" data-mm="1">1</button><button class="chip" data-mm="5">5</button><button class="chip" data-mm="10">10</button><button class="chip" data-mm="50">50</button><button class="chip" data-mm="100">100 mm</button></div></div>
+        <div class="steprow" data-adj="rot"><span class="lbl">Step</span><div class="chips" id="degChips"><button class="chip" data-deg="0.1">0.1</button><button class="chip" data-deg="0.5">0.5</button><button class="chip" data-deg="1">1</button><button class="chip" data-deg="5">5</button><button class="chip" data-deg="15">15°</button></div></div>
+        <div class="pad" id="pad" data-adj="move">
+          <button class="btn" data-n="l,-1" aria-label="Move along length, minus">L −</button><button class="btn" data-n="l,1" aria-label="Move along length, plus">L +</button><button class="btn" data-n="h,1">Up</button>
+          <button class="btn" data-n="w,-1" aria-label="Move across width, minus">W −</button><button class="btn" data-n="w,1" aria-label="Move across width, plus">W +</button><button class="btn" data-n="h,-1">Down</button>
         </div>
+        <div class="pad" id="padRot" data-adj="rot">
+          <button class="btn" data-n="yaw,-1" aria-label="Turn clockwise, seen from above"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.1-5M19 3v4h-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Turn</button><button class="btn" data-n="pitch,-1" aria-label="Pitch minus: lowers the L+ end">Pitch −</button><button class="btn" data-n="roll,-1" aria-label="Roll minus: lowers the W+ side">Roll −</button>
+          <button class="btn" data-n="yaw,1" aria-label="Turn anticlockwise, seen from above"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5M5 3v4h4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Turn</button><button class="btn" data-n="pitch,1" aria-label="Pitch plus: lifts the L+ end">Pitch +</button><button class="btn" data-n="roll,1" aria-label="Roll plus: lifts the W+ side">Roll +</button>
+        </div>
+        <div class="steprow" data-adj="rot"><span class="lbl">About</span><div class="chips" id="rotChips"><button class="chip" data-rot="centre">Base centre</button><button class="chip" data-rot="A">Hole A</button><button class="chip" data-rot="B">Hole B</button></div></div>
         <div class="row"><span id="offs" class="fine mono"></span><button class="btn sm" id="mvReset">Reset</button></div>
-        <div class="steprow"><span class="lbl">Turn about</span><div class="chips" id="rotChips"><button class="chip" data-rot="centre">Box centre</button><button class="chip" data-rot="A">Hole A</button><button class="chip" data-rot="B">Hole B</button></div></div>
       </div>
       <div class="pane" data-apane="view" hidden>
         <div class="row"><span class="lbl">Box opacity</span><output id="opOut2" class="mono"></output></div>
@@ -436,7 +439,8 @@ const S = {
   model: null, size: new THREE.Vector3(1, 1, 1), axL: 'x', tab: 'model',
   up: LS.get('up', '+Y'), opacity: 1, edges: LS.get('edges', true), colors: true, showHoles: LS.get('showHoles', true),
   pickA: null, pickB: null, target: 'A',
-  stepMM: LS.get('stepMM', 10), stepDeg: LS.get('stepDeg', 1), keepLevel: LS.get('keepLevel', true), rotAbout: 'centre',
+  stepMM: LS.get('stepMM', 10), stepDeg: [0.1, 0.5, 1, 5, 15].includes(LS.get('stepDeg', 1)) ? LS.get('stepDeg', 1) : 1, adjMode: LS.get('adjMode', 'move'),
+  keepLevel: LS.get('keepLevel', true), rotAbout: 'centre',
   ar: null, arOK: false, saved: null
 };
 
@@ -830,7 +834,7 @@ async function startAR() {
 }
 function enterARState(session) {
   S.ar = { session, ref: null, hitSrc: null, hit: new THREE.Vector3(), hitOK: false, hitDist: 0, placed: false, realA: null, realB: null,
-    aligned: false, base: null, offs: { l: 0, w: 0, h: 0, yaw: 0 }, sampling: null, report: null, probes: 0, tab: S.pickA ? 'holes' : 'place', lastUI: 0 };
+    aligned: false, base: null, offs: { l: 0, w: 0, h: 0, yaw: 0, pitch: 0, roll: 0 }, sampling: null, report: null, probes: 0, tab: S.pickA ? 'holes' : 'place', lastUI: 0 };
   document.body.classList.add('ar');
   pivot.visible = false; pivot.position.set(0, 0, 0); pivot.quaternion.identity();
   if (grid) grid.visible = false; controls.enabled = false; edgeColor();
@@ -891,7 +895,7 @@ function yawFacingCamera() {
 }
 function setPlaced() {
   const A = S.ar; A.placed = true; pivot.visible = true; pivot.updateMatrixWorld(true);
-  A.base = { p: pivot.position.clone(), q: pivot.quaternion.clone() }; A.offs = { l: 0, w: 0, h: 0, yaw: 0 };
+  A.base = { p: pivot.position.clone(), q: pivot.quaternion.clone() }; A.offs = { l: 0, w: 0, h: 0, yaw: 0, pitch: 0, roll: 0 };
   refreshAlignLines(); updateMoveUI(); updateARHoles(); haptic();
 }
 function arPlace() {
@@ -938,6 +942,7 @@ function rotCentre() {
   const p = S.rotAbout === 'A' ? S.pickA : S.rotAbout === 'B' ? S.pickB : null;
   return p ? pickWorld(p) : pivot.position.clone();
 }
+const hinted = {};
 function nudge(kind, sign) {
   const A = S.ar; if (!A || !A.placed) { toast('Place or snap the box first.'); return; }
   if (kind === 'h') { pivot.position.y += sign * S.stepMM * UNIT; A.offs.h += sign * S.stepMM; }
@@ -948,17 +953,27 @@ function nudge(kind, sign) {
   } else if (kind === 'yaw') {
     const c = rotCentre(), q = new THREE.Quaternion().setFromAxisAngle(UP, THREE.MathUtils.degToRad(sign * S.stepDeg));
     pivot.position.sub(c).applyQuaternion(q).add(c); pivot.quaternion.premultiply(q); A.offs.yaw += sign * S.stepDeg;
+  } else if (kind === 'pitch' || kind === 'roll') {
+    // tilt about the box's own width axis (pitch: + lifts the L+ end) or length axis (roll: + lifts the W+ side)
+    const lx = S.axL === 'x', L = new THREE.Vector3(lx ? 1 : 0, 0, lx ? 0 : 1).applyQuaternion(pivot.quaternion);
+    const W = new THREE.Vector3(lx ? 0 : 1, 0, lx ? 1 : 0).applyQuaternion(pivot.quaternion), U = UP.clone().applyQuaternion(pivot.quaternion);
+    const axis = (kind === 'pitch' ? L : W).cross(U).normalize(), c = rotCentre();
+    const q = new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(sign * S.stepDeg));
+    pivot.position.sub(c).applyQuaternion(q).add(c); pivot.quaternion.premultiply(q); A.offs[kind] += sign * S.stepDeg;
+    if (!hinted[kind]) { hinted[kind] = 1; toast(kind === 'pitch' ? 'Pitch + lifts the L+ end of the box.' : 'Roll + lifts the W+ side of the box.'); }
   }
   pivot.updateMatrixWorld(true); refreshAlignLines(); updateMoveUI(); updateARHoles();
 }
 function resetMove() {
   const A = S.ar; if (!A || !A.base) return;
-  pivot.position.copy(A.base.p); pivot.quaternion.copy(A.base.q); A.offs = { l: 0, w: 0, h: 0, yaw: 0 };
+  pivot.position.copy(A.base.p); pivot.quaternion.copy(A.base.q); A.offs = { l: 0, w: 0, h: 0, yaw: 0, pitch: 0, roll: 0 };
   pivot.updateMatrixWorld(true); refreshAlignLines(); updateMoveUI(); updateARHoles();
 }
 function updateMoveUI() {
   const A = S.ar; if (!A) return; const o = A.offs;
-  $('offs').textContent = A.placed ? `Offset  L ${fmtS(o.l)} · W ${fmtS(o.w)} · H ${fmtS(o.h)} mm · ${fmtS(o.yaw)}°` : 'Place or snap the box first.';
+  $('offs').innerHTML = A.placed ? `L ${fmtS(o.l)} · W ${fmtS(o.w)} · H ${fmtS(o.h)} mm<br>Turn ${fmtS(o.yaw)}° · Pitch ${fmtS(o.pitch)}° · Roll ${fmtS(o.roll)}°` : 'Place or snap the box first.';
+  document.querySelectorAll('#adjMode .chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === S.adjMode));
+  document.querySelectorAll('#arSheet [data-adj]').forEach(el => { el.hidden = el.dataset.adj !== S.adjMode; });
   document.querySelectorAll('#mmChips .chip').forEach(b => b.setAttribute('aria-pressed', +b.dataset.mm === S.stepMM));
   document.querySelectorAll('#degChips .chip').forEach(b => b.setAttribute('aria-pressed', +b.dataset.deg === S.stepDeg));
   document.querySelectorAll('#rotChips .chip').forEach(b => { b.setAttribute('aria-pressed', b.dataset.rot === S.rotAbout); b.disabled = b.dataset.rot !== 'centre' && !S['pick' + b.dataset.rot]; });
@@ -1061,17 +1076,20 @@ $('mmChips').addEventListener('click', e => { const b = e.target.closest('[data-
 $('degChips').addEventListener('click', e => { const b = e.target.closest('[data-deg]'); if (b) { S.stepDeg = +b.dataset.deg; LS.set('stepDeg', S.stepDeg); updateMoveUI(); } });
 $('rotChips').addEventListener('click', e => { const b = e.target.closest('[data-rot]'); if (b && !b.disabled) { S.rotAbout = b.dataset.rot; updateMoveUI(); } });
 $('mvReset').addEventListener('click', resetMove);
+$('adjMode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) { S.adjMode = b.dataset.mode; LS.set('adjMode', S.adjMode); updateMoveUI(); } });
 $('hideBox').addEventListener('change', e => { modelGroup.visible = !e.target.checked; });
 $('probeBtn').addEventListener('click', () => arProbe());
 $('probeClear').addEventListener('click', clearProbes);
 let rep = null; const stopRep = () => { clearTimeout(rep); clearInterval(rep); rep = null; };
-$('pad').addEventListener('pointerdown', e => {
-  const b = e.target.closest('[data-n]'); if (!b) return; e.preventDefault();
-  const [k, s] = b.dataset.n.split(','); nudge(k, +s); stopRep();
-  rep = setTimeout(() => { rep = setInterval(() => nudge(k, +s), 90); }, 420);
-});
-for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('pad').addEventListener(ev, stopRep);
-$('pad').addEventListener('keydown', e => { const b = e.target.closest('[data-n]'); if (b && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); const [k, s] = b.dataset.n.split(','); nudge(k, +s); } });
+for (const pad of [$('pad'), $('padRot')]) {
+  pad.addEventListener('pointerdown', e => {
+    const b = e.target.closest('[data-n]'); if (!b) return; e.preventDefault();
+    const [k, s] = b.dataset.n.split(','); nudge(k, +s); stopRep();
+    rep = setTimeout(() => { rep = setInterval(() => nudge(k, +s), 90); }, 420);
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) pad.addEventListener(ev, stopRep);
+  pad.addEventListener('keydown', e => { const b = e.target.closest('[data-n]'); if (b && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); const [k, s] = b.dataset.n.split(','); nudge(k, +s); } });
+}
 
 // ---------- iPhone fallback: AR Quick Look (USDZ at true scale, current opacity) ----------
 async function prepareQuickLook() {
